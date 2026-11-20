@@ -1,5 +1,5 @@
-export const APP_NAME = "MGOSC SS DB Hub";
-export const APP_SHORT_NAME = "SS DB Hub";
+export const APP_NAME = "The StudentMasterDB";
+export const APP_SHORT_NAME = "StudentMasterDB";
 export const TIME_ZONE = "Asia/Kolkata";
 
 export const SCHOOL_CLASSES = [

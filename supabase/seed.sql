@@ -1,5 +1,5 @@
 -- =============================================================================
--- MGOSC SS DB Hub - development seed data
+-- The StudentMasterDB - development seed data
 -- 1 headmaster (placeholder), 2 teachers, 3 classes, 4 subjects, 10 students.
 --
 -- !! DEVELOPMENT ONLY !!  All seeded users share the password below.

@@ -1,4 +1,6 @@
-# MGOSC SS DB Hub
+# The StudentMasterDB
+
+Sunday School management for Mar Gregorios Orthodox Syrian Church (OSSAE, Thrissur Diocese).
 
 Sunday School management: student database, classes, teacher logins, marks, attendance,
 activities, reports, certificates and a public registration form.
