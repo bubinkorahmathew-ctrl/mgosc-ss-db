@@ -1,0 +1,124 @@
+diff --git a/node_modules/fontkit/dist/browser-module.mjs b/node_modules/fontkit/dist/browser-module.mjs
+index 4d0a389..fd1177e 100644
+--- a/node_modules/fontkit/dist/browser-module.mjs
++++ b/node_modules/fontkit/dist/browser-module.mjs
+@@ -9880,6 +9880,8 @@ class $c96c93587d49c14d$export$2e2bcd8739ae039 extends (0, $a83b9c36aaa94fd3$exp
+                     if (baseIndex === -1) return false;
+                     let markRecord = table.markArray[markIndex];
+                     let baseAnchor = table.baseArray[baseIndex][markRecord.class];
++                    // patched: a NULL anchor means "no attachment" (OpenType spec / HarfBuzz)
++                    if (!baseAnchor || !markRecord.markAnchor) return false;
+                     this.applyAnchor(markRecord, baseAnchor, baseGlyphIndex);
+                     return true;
+                 }
+@@ -9899,6 +9901,8 @@ class $c96c93587d49c14d$export$2e2bcd8739ae039 extends (0, $a83b9c36aaa94fd3$exp
+                     let compIndex = ligGlyph.ligatureID && ligGlyph.ligatureID === markGlyph.ligatureID && markGlyph.ligatureComponent > 0 ? Math.min(markGlyph.ligatureComponent, ligGlyph.codePoints.length) - 1 : ligGlyph.codePoints.length - 1;
+                     let markRecord = table.markArray[markIndex];
+                     let baseAnchor = ligAttach[compIndex][markRecord.class];
++                    // patched: a NULL anchor means "no attachment" (OpenType spec / HarfBuzz)
++                    if (!baseAnchor || !markRecord.markAnchor) return false;
+                     this.applyAnchor(markRecord, baseAnchor, baseGlyphIndex);
+                     return true;
+                 }
+@@ -9924,6 +9928,8 @@ class $c96c93587d49c14d$export$2e2bcd8739ae039 extends (0, $a83b9c36aaa94fd3$exp
+                     if (mark2Index === -1) return false;
+                     let markRecord = table.mark1Array[mark1Index];
+                     let baseAnchor = table.mark2Array[mark2Index][markRecord.class];
++                    // patched: a NULL anchor means "no attachment" (OpenType spec / HarfBuzz)
++                    if (!baseAnchor || !markRecord.markAnchor) return false;
+                     this.applyAnchor(markRecord, baseAnchor, prevIndex);
+                     return true;
+                 }
+diff --git a/node_modules/fontkit/dist/browser.cjs b/node_modules/fontkit/dist/browser.cjs
+index a5fa901..82c75cc 100644
+--- a/node_modules/fontkit/dist/browser.cjs
++++ b/node_modules/fontkit/dist/browser.cjs
+@@ -9897,6 +9897,8 @@ class $79ea6270f0a90256$export$2e2bcd8739ae039 extends (0, $7b226e6bbeadedeb$exp
+                     if (baseIndex === -1) return false;
+                     let markRecord = table.markArray[markIndex];
+                     let baseAnchor = table.baseArray[baseIndex][markRecord.class];
++                    // patched: a NULL anchor means "no attachment" (OpenType spec / HarfBuzz)
++                    if (!baseAnchor || !markRecord.markAnchor) return false;
+                     this.applyAnchor(markRecord, baseAnchor, baseGlyphIndex);
+                     return true;
+                 }
+@@ -9916,6 +9918,8 @@ class $79ea6270f0a90256$export$2e2bcd8739ae039 extends (0, $7b226e6bbeadedeb$exp
+                     let compIndex = ligGlyph.ligatureID && ligGlyph.ligatureID === markGlyph.ligatureID && markGlyph.ligatureComponent > 0 ? Math.min(markGlyph.ligatureComponent, ligGlyph.codePoints.length) - 1 : ligGlyph.codePoints.length - 1;
+                     let markRecord = table.markArray[markIndex];
+                     let baseAnchor = ligAttach[compIndex][markRecord.class];
++                    // patched: a NULL anchor means "no attachment" (OpenType spec / HarfBuzz)
++                    if (!baseAnchor || !markRecord.markAnchor) return false;
+                     this.applyAnchor(markRecord, baseAnchor, baseGlyphIndex);
+                     return true;
+                 }
+@@ -9941,6 +9945,8 @@ class $79ea6270f0a90256$export$2e2bcd8739ae039 extends (0, $7b226e6bbeadedeb$exp
+                     if (mark2Index === -1) return false;
+                     let markRecord = table.mark1Array[mark1Index];
+                     let baseAnchor = table.mark2Array[mark2Index][markRecord.class];
++                    // patched: a NULL anchor means "no attachment" (OpenType spec / HarfBuzz)
++                    if (!baseAnchor || !markRecord.markAnchor) return false;
+                     this.applyAnchor(markRecord, baseAnchor, prevIndex);
+                     return true;
+                 }
+diff --git a/node_modules/fontkit/dist/main.cjs b/node_modules/fontkit/dist/main.cjs
+index 851b2d2..003f7d7 100644
+--- a/node_modules/fontkit/dist/main.cjs
++++ b/node_modules/fontkit/dist/main.cjs
+@@ -9918,6 +9918,8 @@ class $79ea6270f0a90256$export$2e2bcd8739ae039 extends (0, $7b226e6bbeadedeb$exp
+                     if (baseIndex === -1) return false;
+                     let markRecord = table.markArray[markIndex];
+                     let baseAnchor = table.baseArray[baseIndex][markRecord.class];
++                    // patched: a NULL anchor means "no attachment" (OpenType spec / HarfBuzz)
++                    if (!baseAnchor || !markRecord.markAnchor) return false;
+                     this.applyAnchor(markRecord, baseAnchor, baseGlyphIndex);
+                     return true;
+                 }
+@@ -9937,6 +9939,8 @@ class $79ea6270f0a90256$export$2e2bcd8739ae039 extends (0, $7b226e6bbeadedeb$exp
+                     let compIndex = ligGlyph.ligatureID && ligGlyph.ligatureID === markGlyph.ligatureID && markGlyph.ligatureComponent > 0 ? Math.min(markGlyph.ligatureComponent, ligGlyph.codePoints.length) - 1 : ligGlyph.codePoints.length - 1;
+                     let markRecord = table.markArray[markIndex];
+                     let baseAnchor = ligAttach[compIndex][markRecord.class];
++                    // patched: a NULL anchor means "no attachment" (OpenType spec / HarfBuzz)
++                    if (!baseAnchor || !markRecord.markAnchor) return false;
+                     this.applyAnchor(markRecord, baseAnchor, baseGlyphIndex);
+                     return true;
+                 }
+@@ -9962,6 +9966,8 @@ class $79ea6270f0a90256$export$2e2bcd8739ae039 extends (0, $7b226e6bbeadedeb$exp
+                     if (mark2Index === -1) return false;
+                     let markRecord = table.mark1Array[mark1Index];
+                     let baseAnchor = table.mark2Array[mark2Index][markRecord.class];
++                    // patched: a NULL anchor means "no attachment" (OpenType spec / HarfBuzz)
++                    if (!baseAnchor || !markRecord.markAnchor) return false;
+                     this.applyAnchor(markRecord, baseAnchor, prevIndex);
+                     return true;
+                 }
+diff --git a/node_modules/fontkit/dist/module.mjs b/node_modules/fontkit/dist/module.mjs
+index fde88fc..1c330fc 100644
+--- a/node_modules/fontkit/dist/module.mjs
++++ b/node_modules/fontkit/dist/module.mjs
+@@ -9901,6 +9901,8 @@ class $c96c93587d49c14d$export$2e2bcd8739ae039 extends (0, $a83b9c36aaa94fd3$exp
+                     if (baseIndex === -1) return false;
+                     let markRecord = table.markArray[markIndex];
+                     let baseAnchor = table.baseArray[baseIndex][markRecord.class];
++                    // patched: a NULL anchor means "no attachment" (OpenType spec / HarfBuzz)
++                    if (!baseAnchor || !markRecord.markAnchor) return false;
+                     this.applyAnchor(markRecord, baseAnchor, baseGlyphIndex);
+                     return true;
+                 }
+@@ -9920,6 +9922,8 @@ class $c96c93587d49c14d$export$2e2bcd8739ae039 extends (0, $a83b9c36aaa94fd3$exp
+                     let compIndex = ligGlyph.ligatureID && ligGlyph.ligatureID === markGlyph.ligatureID && markGlyph.ligatureComponent > 0 ? Math.min(markGlyph.ligatureComponent, ligGlyph.codePoints.length) - 1 : ligGlyph.codePoints.length - 1;
+                     let markRecord = table.markArray[markIndex];
+                     let baseAnchor = ligAttach[compIndex][markRecord.class];
++                    // patched: a NULL anchor means "no attachment" (OpenType spec / HarfBuzz)
++                    if (!baseAnchor || !markRecord.markAnchor) return false;
+                     this.applyAnchor(markRecord, baseAnchor, baseGlyphIndex);
+                     return true;
+                 }
+@@ -9945,6 +9949,8 @@ class $c96c93587d49c14d$export$2e2bcd8739ae039 extends (0, $a83b9c36aaa94fd3$exp
+                     if (mark2Index === -1) return false;
+                     let markRecord = table.mark1Array[mark1Index];
+                     let baseAnchor = table.mark2Array[mark2Index][markRecord.class];
++                    // patched: a NULL anchor means "no attachment" (OpenType spec / HarfBuzz)
++                    if (!baseAnchor || !markRecord.markAnchor) return false;
+                     this.applyAnchor(markRecord, baseAnchor, prevIndex);
+                     return true;
+                 }

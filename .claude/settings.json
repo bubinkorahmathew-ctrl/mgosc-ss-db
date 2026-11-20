@@ -1,0 +1,7 @@
+{
+  "permissions": {
+    "allow": [
+      "PowerShell($s=\"C:\\\\Users\\\\user\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\194ca6a2c778c039\\\\f32c63f9-0254-4caf-9287-e994c7977727\"; Get-Content \"$s\\\\tasks\\\\bnz3o7o4p.output\" -Tail 12; Get-ChildItem -Force \"$s\\\\scratchpad\\\\sundayschool\" | Select-Object Name; Get-Content \"$s\\\\scratchpad\\\\sundayschool\\\\package.json\")"
+    ]
+  }
+}
