@@ -20,7 +20,7 @@ export async function defaultRange() {
 export async function studentReport(f: StudentReportFilters, allowedClassIds: string[] | "all") {
   const dbc = await createClient();
   let q = dbc.from("students")
-    .select("admission_no, full_name, full_name_ml, dob, gender, school_class, school_name, prayer_group, father_name, mother_name, guardian_phone, address, baptised, status, classes(name, section)")
+    .select("admission_no, full_name, full_name_ml, dob, gender, school_class, school_name, prayer_group, father_name, mother_name, guardian_phone, father_phone, email, address, baptism_name, status, classes(name, section)")
     .order("full_name").limit(MAX_ROWS);
   if (f.status !== "all") q = q.eq("status", f.status);
   if (f.class_id) q = q.eq("class_id", f.class_id);

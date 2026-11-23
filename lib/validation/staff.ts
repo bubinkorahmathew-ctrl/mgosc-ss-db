@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isoDate, optionalPhone, optionalText, requiredText, uuid } from "./common";
+import { isoDate, optionalPassYear, optionalPhone, optionalText, requiredText, uuid } from "./common";
 
 export const academicYearSchema = z.object({
   id: uuid.optional(),
@@ -22,6 +22,7 @@ export const createTeacherSchema = z.object({
   full_name: requiredText("Name"),
   email: z.email("Enter a valid email address.").trim().toLowerCase(),
   phone: optionalPhone,
+  twelfth_passed_year: optionalPassYear,
   class_ids: z.array(uuid).max(20).default([]),
 });
 export type CreateTeacherInput = z.input<typeof createTeacherSchema>;
@@ -34,7 +35,9 @@ export const createAdminSchema = z.object({
 export const updateTeacherSchema = z.object({
   id: uuid,
   full_name: requiredText("Name"),
+  email: z.email("Enter a valid email address.").trim().toLowerCase(),
   phone: optionalPhone,
+  twelfth_passed_year: optionalPassYear,
   class_ids: z.array(uuid).max(20).default([]),
 });
 

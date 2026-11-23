@@ -1,33 +1,46 @@
-export type NavIcon =
-  | "dashboard" | "inbox" | "students" | "classes" | "teachers" | "exams" | "reportcards"
-  | "reports" | "certificates" | "promotion" | "settings" | "attendance" | "marks"
-  | "activities" | "account";
+import type { IconColor, IconName } from "./icons";
 
-export type NavItem = { href: string; label: string; icon: NavIcon; primary?: boolean; superOnly?: boolean };
+export type { IconName as NavIcon } from "./icons";
+
+export type NavItem = {
+  href: string; label: string; icon: IconName; color: IconColor; primary?: boolean; superOnly?: boolean;
+};
+
+/** What the super admin chose in Settings: href -> icon and colour. */
+export type NavStyle = Record<string, { icon: IconName; color: IconColor }>;
 
 export const ADMIN_NAV: NavItem[] = [
-  { href: "/admin", label: "Dashboard", icon: "dashboard", primary: true },
-  { href: "/admin/registrations", label: "Registrations", icon: "inbox", primary: true },
-  { href: "/admin/students", label: "Students", icon: "students", primary: true },
-  { href: "/admin/classes", label: "Classes", icon: "classes" },
-  { href: "/admin/teachers", label: "Teachers", icon: "teachers" },
-  { href: "/admin/exams", label: "Subjects & Exams", icon: "exams" },
-  { href: "/admin/report-cards", label: "Report cards", icon: "reportcards" },
-  { href: "/admin/reports", label: "Reports", icon: "reports", primary: true },
-  { href: "/admin/certificates", label: "Certificates", icon: "certificates" },
-  { href: "/admin/promotion", label: "Promotion", icon: "promotion" },
-  { href: "/admin/admins", label: "Admins", icon: "teachers", superOnly: true },
-  { href: "/admin/settings", label: "Settings", icon: "settings", superOnly: true },
-  { href: "/admin/account", label: "Account", icon: "account" },
+  { href: "/admin", label: "Dashboard", icon: "dashboard", color: "blue", primary: true },
+  { href: "/admin/registrations", label: "Registrations", icon: "inbox", color: "orange", primary: true },
+  { href: "/admin/students", label: "Students", icon: "students", color: "blue", primary: true },
+  { href: "/admin/import", label: "Bulk upload", icon: "upload", color: "teal" },
+  { href: "/admin/classes", label: "Classes", icon: "classes", color: "indigo" },
+  { href: "/admin/teachers", label: "Teachers", icon: "teachers", color: "purple" },
+  { href: "/admin/exams", label: "Subjects & Exams", icon: "exams", color: "amber" },
+  { href: "/admin/report-cards", label: "Report cards", icon: "reportcards", color: "sky" },
+  { href: "/admin/reports", label: "Reports", icon: "reports", color: "green", primary: true },
+  { href: "/admin/certificates", label: "Certificates", icon: "certificates", color: "pink" },
+  { href: "/admin/promotion", label: "Promotion", icon: "promotion", color: "red" },
+  { href: "/admin/admins", label: "Admins", icon: "teachers", color: "slate", superOnly: true },
+  { href: "/admin/rights", label: "User rights", icon: "shield", color: "slate", superOnly: true },
+  { href: "/admin/settings", label: "Settings", icon: "settings", color: "slate", superOnly: true },
+  { href: "/admin/account", label: "Account", icon: "account", color: "slate" },
 ];
 
 export const TEACHER_NAV: NavItem[] = [
-  { href: "/teacher", label: "My class", icon: "dashboard", primary: true },
-  { href: "/teacher/attendance", label: "Attendance", icon: "attendance", primary: true },
-  { href: "/teacher/marks", label: "Marks", icon: "marks", primary: true },
-  { href: "/teacher/activities", label: "Activities", icon: "activities", primary: true },
-  { href: "/teacher/students", label: "Students", icon: "students" },
-  { href: "/teacher/reports", label: "Reports", icon: "reports" },
-  { href: "/teacher/certificates", label: "Certificates", icon: "certificates" },
-  { href: "/teacher/account", label: "Account", icon: "account" },
+  { href: "/teacher", label: "My class", icon: "dashboard", color: "blue", primary: true },
+  { href: "/teacher/attendance", label: "Attendance", icon: "attendance", color: "green", primary: true },
+  { href: "/teacher/marks", label: "Marks", icon: "marks", color: "amber", primary: true },
+  { href: "/teacher/activities", label: "Activities", icon: "activities", color: "pink", primary: true },
+  { href: "/teacher/students", label: "Students", icon: "students", color: "blue" },
+  { href: "/teacher/import", label: "Bulk upload", icon: "upload", color: "teal" },
+  { href: "/teacher/reports", label: "Reports", icon: "reports", color: "green" },
+  { href: "/teacher/certificates", label: "Certificates", icon: "certificates", color: "pink" },
+  { href: "/teacher/account", label: "Account", icon: "account", color: "slate" },
 ];
+
+/** The menu with the super admin's icon choices applied (unknown entries are ignored). */
+export function styleNav(nav: NavItem[], style: NavStyle | null | undefined): NavItem[] {
+  if (!style) return nav;
+  return nav.map((item) => (Object.hasOwn(style, item.href) ? { ...item, ...style[item.href] } : item));
+}

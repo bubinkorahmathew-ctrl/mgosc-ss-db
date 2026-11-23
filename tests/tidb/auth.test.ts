@@ -241,6 +241,29 @@ describe("teacher accounts", () => {
     expect(rows.map((r) => r.class_id).sort()).toEqual([old, IDS.class3].sort());
   });
 
+  it("keep the 12th passed year, and a changed email becomes the sign-in email", async () => {
+    const email = `${randomUUID()}@test.invalid`;
+    const made = await createTeacherAccount(t.database, IDS.headmaster,
+      { email, full_name: "Year Teacher", phone: null, twelfth_passed_year: 2010, class_ids: [] });
+    const year = async () => (await t.database.query<{ y: number | null }>(
+      "select twelfth_passed_year y from profiles where id = ?", [made.id]))[0].y;
+    expect(await year()).toBe(2010);
+
+    const moved = `${randomUUID()}@test.invalid`;
+    await updateTeacherAccount(t.database, IDS.headmaster, made.id,
+      { full_name: "Year Teacher", phone: null, email: moved, twelfth_passed_year: 2012, class_ids: [] });
+    expect(await year()).toBe(2012);
+    expect((await signIn(email, made.password)).ok).toBe(false);
+    expect((await signIn(moved, made.password)).ok).toBe(true);
+
+    // leaving the year out keeps it; another account's email is refused
+    await updateTeacherAccount(t.database, IDS.headmaster, made.id, { full_name: "Year Teacher", phone: null, class_ids: [] });
+    expect(await year()).toBe(2012);
+    await expect(updateTeacherAccount(t.database, IDS.headmaster, made.id,
+      { full_name: "Year Teacher", phone: null, email: HEAD.email, class_ids: [] })).rejects.toThrow(/duplicate key/);
+    expect((await signIn(moved, made.password)).ok).toBe(true);
+  });
+
   it("a reset replaces the password and ends every session", async () => {
     const teacher = await newTeacher();
     const token = await tokenFor(teacher.email, teacher.password);

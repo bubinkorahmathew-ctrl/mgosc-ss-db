@@ -32,13 +32,14 @@ export type Kind = Base | `${Base}?` | readonly string[];
 const personal = {
   full_name: "text", full_name_ml: "text?", dob: "date", gender: ["male", "female"],
   father_name: "text?", mother_name: "text?", guardian_phone: "text", address: "text?",
+  father_phone: "text?", email: "text?",
   baptised: "bool", school_class: "text", school_name: "text?",
-  prayer_group: "text?",
+  prayer_group: "text?", baptism_name: "text?",
 } as const;
 
 export const COLUMNS: { [T in TableName]: { readonly [C in keyof Rows[T]]-?: Kind } } = {
   profiles: {
-    id: "uuid", full_name: "text", phone: "text?", role: ["headmaster", "teacher"], active: "bool", created_at: "time",
+    id: "uuid", full_name: "text", phone: "text?", twelfth_passed_year: "int?", role: ["headmaster", "teacher"], active: "bool", created_at: "time",
   },
   academic_years: { id: "uuid", name: "text", start_date: "date", end_date: "date", is_current: "bool" },
   classes: { id: "uuid", name: "text", section: "text?", academic_year_id: "uuid", created_at: "time" },
@@ -75,7 +76,7 @@ export const COLUMNS: { [T in TableName]: { readonly [C in keyof Rows[T]]-?: Kin
   },
   school_settings: {
     id: "int", school_name: "text", address: "text?", logo_url: "text?", headmaster_name: "text?",
-    signature_url: "text?", certificate_wording: "json", updated_at: "time",
+    signature_url: "text?", certificate_wording: "json", nav_icons: "json?", updated_at: "time",
   },
   number_counters: { kind: ["admission", "certificate"], year: "int", last_value: "int" },
 };

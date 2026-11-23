@@ -172,6 +172,9 @@ export async function validateRows(
         if (table !== "profiles") {
           checkLength(row, "full_name_ml", 0, 120);
           checkLength(row, "prayer_group", 0, 120);
+          checkLength(row, "baptism_name", 0, 120);
+          checkLength(row, "father_phone", 0, 16);
+          checkLength(row, "email", 0, 254);
         }
         break;
       case "activities":

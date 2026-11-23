@@ -5,7 +5,7 @@ import { SCHOOL_CLASSES } from "@/lib/config";
 import type { PersonalFieldsInput } from "@/lib/validation/common";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { CheckboxField, Field, NativeSelect, firstError } from "./field";
+import { Field, NativeSelect, firstError } from "./field";
 
 type Props = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -53,13 +53,21 @@ export function PersonalFieldsFieldset({ register, errors, serverErrors }: Props
       <Field id="prayer_group" label="Prayer group name" error={e("prayer_group")} className="sm:col-span-2" hint="Optional">
         <Input id="prayer_group" autoComplete="off" aria-invalid={invalid("prayer_group")} {...register("prayer_group")} />
       </Field>
+      <Field id="father_phone" label="Father's mobile number" error={e("father_phone")} hint="Optional">
+        <Input id="father_phone" type="tel" inputMode="tel" autoComplete="off"
+          aria-invalid={invalid("father_phone")} {...register("father_phone")} />
+      </Field>
       <Field id="guardian_phone" label="Parent / guardian phone" required error={e("guardian_phone")}>
         <Input id="guardian_phone" type="tel" inputMode="tel" autoComplete="tel"
           aria-invalid={invalid("guardian_phone")} {...register("guardian_phone")} />
       </Field>
-      <div className="flex items-end">
-        <CheckboxField id="baptised" label="Baptised" {...register("baptised")} />
-      </div>
+      <Field id="email" label="Email" error={e("email")} hint="Optional">
+        <Input id="email" type="email" inputMode="email" autoComplete="email"
+          aria-invalid={invalid("email")} {...register("email")} />
+      </Field>
+      <Field id="baptism_name" label="Baptism name" error={e("baptism_name")} hint="Optional">
+        <Input id="baptism_name" autoComplete="off" aria-invalid={invalid("baptism_name")} {...register("baptism_name")} />
+      </Field>
       <Field id="address" label="Address" error={e("address")} className="sm:col-span-2">
         <Textarea id="address" rows={3} aria-invalid={invalid("address")} {...register("address")} />
       </Field>

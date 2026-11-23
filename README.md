@@ -55,11 +55,11 @@ npm run test:tidb  # about 25 minutes; creates and drops temporary databases on 
 
 | | Super admin | Admin | Teacher |
 | --- | --- | --- | --- |
-| Admin accounts, school settings, signature | yes | - | - |
+| Admin accounts, user rights page, school settings, signature, menu icons | yes | - | - |
 | Classes, teachers, exams, promotion, registrations | yes | yes | - |
-| Add students | any class | any class | own classes |
+| Add students (one by one or Excel bulk upload) | any class | any class | own classes |
 | Edit, move or deactivate students | yes | yes | - |
-| Attendance, marks, activities | all | all | own classes |
+| Attendance, marks, activities (incl. Excel bulk upload) | all | all | own classes |
 | Issue or revoke certificates | yes | yes | - |
 | View and download certificates, reports | all | all | own classes |
 

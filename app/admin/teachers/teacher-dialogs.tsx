@@ -17,7 +17,10 @@ import {
 import { CheckboxField, Field } from "@/components/form/field";
 
 type Option = { id: string; label: string };
-type Teacher = { id: string; full_name: string; phone: string; active: boolean; class_ids: string[] };
+type Teacher = {
+  id: string; full_name: string; email: string; phone: string; twelfth_passed_year: number | null;
+  active: boolean; class_ids: string[];
+};
 
 /** Shows a temporary password once, with copy + share text. */
 function CredentialsBox({ email, password }: { email?: string; password: string }) {
@@ -58,26 +61,29 @@ export function TeacherDialog({ classes, teacher }: { classes: Option[]; teacher
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const [fullName, setFullName] = useState(teacher?.full_name ?? "");
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(teacher?.email ?? "");
   const [phone, setPhone] = useState(teacher?.phone ?? "");
+  const [year, setYear] = useState(teacher?.twelfth_passed_year?.toString() ?? "");
   const [classIds, setClassIds] = useState<string[]>(teacher?.class_ids ?? []);
   const [errors, setErrors] = useState<Record<string, string[]>>();
   const [creds, setCreds] = useState<{ email: string; password: string }>();
 
   const onOpenChange = (o: boolean) => {
     setOpen(o);
-    if (!o && creds) { setCreds(undefined); setFullName(""); setEmail(""); setPhone(""); setClassIds([]); }
+    if (!o && creds) { setCreds(undefined); setFullName(""); setEmail(""); setPhone(""); setYear(""); setClassIds([]); }
   };
 
   const save = () => start(async () => {
     setErrors(undefined);
     if (teacher) {
-      const res = await updateTeacher({ id: teacher.id, full_name: fullName, phone, class_ids: classIds });
+      const res = await updateTeacher({
+        id: teacher.id, full_name: fullName, email, phone, twelfth_passed_year: year, class_ids: classIds,
+      });
       if (!res.ok) { setErrors(res.fieldErrors); toast.error(res.error); return; }
       toast.success(res.message ?? "Saved.");
       setOpen(false);
     } else {
-      const res = await createTeacher({ full_name: fullName, email, phone, class_ids: classIds });
+      const res = await createTeacher({ full_name: fullName, email, phone, twelfth_passed_year: year, class_ids: classIds });
       if (!res.ok) { setErrors(res.fieldErrors); toast.error(res.error); return; }
       toast.success(res.message ?? "Created.");
       setCreds(res.data);
@@ -98,25 +104,30 @@ export function TeacherDialog({ classes, teacher }: { classes: Option[]; teacher
         {creds ? <CredentialsBox email={creds.email} password={creds.password} /> : (
           <>
             <div className="space-y-4">
-              <Field id="t-name" label="Full name" required error={errors?.full_name?.[0]}>
+              <Field id="t-name" label="Teacher name" required error={errors?.full_name?.[0]}>
                 <Input id="t-name" value={fullName} onChange={(e) => setFullName(e.target.value)} />
               </Field>
-              {!teacher && (
-                <Field id="t-email" label="Email (used to sign in)" required error={errors?.email?.[0]}>
-                  <Input id="t-email" type="email" inputMode="email" autoComplete="off"
-                    value={email} onChange={(e) => setEmail(e.target.value)} />
-                </Field>
-              )}
-              <Field id="t-phone" label="Phone" error={errors?.phone?.[0]}>
-                <Input id="t-phone" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+              <Field id="t-email" label="Email (used to sign in)" required error={errors?.email?.[0]}
+                hint={teacher ? "Changing it changes the email the teacher signs in with." : undefined}>
+                <Input id="t-email" type="email" inputMode="email" autoComplete="off"
+                  value={email} onChange={(e) => setEmail(e.target.value)} />
               </Field>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field id="t-phone" label="Phone number" error={errors?.phone?.[0]}>
+                  <Input id="t-phone" type="tel" inputMode="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                </Field>
+                <Field id="t-year" label="12th passed year" error={errors?.twelfth_passed_year?.[0]}>
+                  <Input id="t-year" inputMode="numeric" placeholder="e.g. 2010" maxLength={4}
+                    value={year} onChange={(e) => setYear(e.target.value.replace(/\D/g, ""))} />
+                </Field>
+              </div>
               <fieldset>
-                <legend className="mb-2 text-sm font-medium">Classes (current year)</legend>
+                <legend className="mb-2 text-sm font-medium">Assign classes (current year)</legend>
                 <ClassCheckboxes classes={classes} value={classIds} onChange={setClassIds} />
               </fieldset>
             </div>
             <DialogFooter>
-              <Button onClick={save} disabled={pending || !fullName.trim() || (!teacher && !email.trim())}>
+              <Button onClick={save} disabled={pending || !fullName.trim() || !email.trim()}>
                 {pending && <Loader2 className="animate-spin" />} {teacher ? "Save" : "Create login"}
               </Button>
             </DialogFooter>

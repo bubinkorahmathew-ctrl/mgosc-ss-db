@@ -7,6 +7,7 @@
 import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { parseEnv } from "node:util";
 import mysql from "mysql2/promise";
 import { createDb } from "@/lib/db/client";
 import { createDatabase, createPool, executor, type Database, type TiDbConfig } from "@/lib/db/connection";
@@ -20,12 +21,16 @@ export { IDS } from "../db/harness";
 const root = path.resolve(__dirname, "..", "..");
 
 function testConfig(): Omit<TiDbConfig, "database"> {
-  const { TIDB_HOST, TIDB_PORT, TIDB_USER, TIDB_PASSWORD } = process.env;
+  // the app's own settings first: .env.local is what `npm run dev` uses
+  const envFile = path.join(root, ".env.local");
+  const local: Record<string, string | undefined> = fs.existsSync(envFile) ? parseEnv(fs.readFileSync(envFile, "utf8")) : {};
+  const pick = (k: string) => process.env[k] || local[k];
+  const [TIDB_HOST, TIDB_PORT, TIDB_USER, TIDB_PASSWORD] = ["TIDB_HOST", "TIDB_PORT", "TIDB_USER", "TIDB_PASSWORD"].map(pick);
   if (TIDB_HOST && TIDB_USER && TIDB_PASSWORD) {
     return { host: TIDB_HOST, port: Number(TIDB_PORT || 4000), user: TIDB_USER, password: TIDB_PASSWORD };
   }
   const file = path.join(root, "tibcloud.txt");
-  if (!fs.existsSync(file)) throw new Error("Set TIDB_HOST, TIDB_USER and TIDB_PASSWORD to run the TiDB tests.");
+  if (!fs.existsSync(file)) throw new Error("Set TIDB_HOST, TIDB_USER and TIDB_PASSWORD (or .env.local) to run the TiDB tests.");
   const lines = fs.readFileSync(file, "utf8").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
   const field = (k: string) => lines[lines.indexOf(`${k}:`) + 1];
   return { host: field("HOST"), port: Number(field("PORT")), user: field("USERNAME"), password: field("PASSWORD") };

@@ -3,24 +3,14 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useState } from "react";
-import {
-  Award, BookOpen, CalendarCheck, ClipboardList, FileBarChart, FileText, GraduationCap,
-  Inbox, LayoutDashboard, LogOut, Menu, PencilLine, School, Settings, Sparkles, UserCog,
-  UserRound, Users, type LucideIcon,
-} from "lucide-react";
+import { ClipboardList, LogOut, Menu } from "lucide-react";
 import { signOut } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 import { Logo } from "@/components/brand";
-import type { NavIcon, NavItem } from "./nav-config";
-
-const ICONS: Record<NavIcon, LucideIcon> = {
-  dashboard: LayoutDashboard, inbox: Inbox, students: Users, classes: School, teachers: UserCog,
-  exams: BookOpen, reportcards: FileText, reports: FileBarChart, certificates: Award,
-  promotion: GraduationCap, settings: Settings, attendance: CalendarCheck, marks: PencilLine,
-  activities: Sparkles, account: UserRound,
-};
+import { COLOR_SET, ICON_SET } from "./icons";
+import type { NavItem } from "./nav-config";
 
 function isActive(pathname: string, href: string, root: string) {
   return href === root ? pathname === root : pathname === href || pathname.startsWith(href + "/");
@@ -32,7 +22,7 @@ function NavLinks({ nav, root, pathname, onNavigate }: {
   return (
     <nav className="flex flex-col gap-1">
       {nav.map((item) => {
-        const Icon = ICONS[item.icon];
+        const Icon = ICON_SET[item.icon].icon;
         const active = isActive(pathname, item.href, root);
         return (
           <Link key={item.href} href={item.href} onClick={onNavigate}
@@ -41,7 +31,7 @@ function NavLinks({ nav, root, pathname, onNavigate }: {
               "flex min-h-11 items-center gap-3 rounded-lg px-3 text-sm font-medium transition-colors",
               active ? "bg-primary text-primary-foreground" : "text-foreground/80 hover:bg-muted",
             )}>
-            <Icon className="size-5 shrink-0" /> {item.label}
+            <Icon className={cn("size-5 shrink-0", !active && COLOR_SET[item.color].text)} /> {item.label}
           </Link>
         );
       })}
@@ -114,7 +104,7 @@ export function AppShell({
         <nav aria-label="Main"
           className="fixed inset-x-0 bottom-0 z-30 grid grid-cols-5 border-t bg-background pb-[env(safe-area-inset-bottom)] lg:hidden">
           {primary.map((item) => {
-            const Icon = ICONS[item.icon];
+            const Icon = ICON_SET[item.icon].icon;
             const active = isActive(pathname, item.href, root);
             return (
               <Link key={item.href} href={item.href} aria-current={active ? "page" : undefined}

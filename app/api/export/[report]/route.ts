@@ -36,10 +36,11 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/export/[repo
           { header: "School", key: "school_name", width: 24 }, { header: "Prayer group", key: "prayer_group", width: 22 },
           { header: "Father", key: "father_name", width: 20 },
           { header: "Mother", key: "mother_name", width: 20 }, { header: "Phone", key: "guardian_phone", width: 14 },
-          { header: "Address", key: "address", width: 30 }, { header: "Baptised", key: "baptised_f", width: 9 },
+          { header: "Father's mobile", key: "father_phone", width: 15 }, { header: "Email", key: "email", width: 26 },
+          { header: "Address", key: "address", width: 30 }, { header: "Baptism name", key: "baptism_name", width: 22 },
           { header: "Status", key: "status", width: 10 },
         ],
-        rows: rows.map((r) => ({ ...r, dob_f: formatDate(r.dob), baptised_f: r.baptised ? "Yes" : "No" })),
+        rows: rows.map((r) => ({ ...r, dob_f: formatDate(r.dob) })),
       };
       filename = `Students ${f.as_of}.xlsx`;
     } else if (report === "attendance") {

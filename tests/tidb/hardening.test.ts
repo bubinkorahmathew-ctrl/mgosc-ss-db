@@ -84,19 +84,20 @@ describe("hostile input", () => {
   });
 });
 
-describe("prayer group", () => {
-  it("survives registration and approval, and the student's teacher can read it", async () => {
+describe("prayer group and baptism name", () => {
+  it("survive registration and approval, and the student's teacher can read them", async () => {
     const group = "സെന്റ് തോമസ് Prayer Group";
     await t.as(null).insert("registrations", {
       full_name: "Group Child", dob: "2020-01-01", gender: "male", guardian_phone: "9000000000",
-      school_class: "LKG", prayer_group: group,
+      school_class: "LKG", prayer_group: group, baptism_name: "മത്തായി",
     });
     const head = t.as(IDS.headmaster);
     const [reg] = await head.select("registrations", { where: [["full_name", "eq", "Group Child"]] });
-    expect(reg.prayer_group).toBe(group);
+    expect([reg.prayer_group, reg.baptism_name]).toEqual([group, "മത്തായി"]);
     const id = await head.approveRegistration(reg.id, IDS.class2);
     const [seen] = await t.as(IDS.teacher2).select("students", { where: [["id", "eq", id]] });
-    expect(seen.prayer_group).toBe(group);
+    expect([seen.prayer_group, seen.baptism_name]).toEqual([group, "മത്തായി"]);
+    await expect(head.update("students", { baptism_name: "x".repeat(121) }, [["id", "eq", id]])).rejects.toThrow(/baptism_name/);
     const [edited] = await head.update("students", { prayer_group: "St. George" }, [["id", "eq", id]]);
     expect(edited.prayer_group).toBe("St. George");
     await head.delete("students", [["id", "eq", id]]);

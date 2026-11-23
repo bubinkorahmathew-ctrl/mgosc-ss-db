@@ -27,9 +27,11 @@ export function StudentProfileView({ profile }: { profile: StudentProfile }) {
     ["Prayer group", s.prayer_group || "-"],
     ["Father", s.father_name || "-"],
     ["Mother", s.mother_name || "-"],
+    ["Father's mobile", s.father_phone ? <a key="f" href={`tel:${s.father_phone}`} className="text-primary underline">{s.father_phone}</a> : "-"],
     ["Guardian phone", <a key="p" href={`tel:${s.guardian_phone}`} className="text-primary underline">{s.guardian_phone}</a>],
+    ["Email", s.email || "-"],
     ["Address", s.address || "-"],
-    ["Baptised", s.baptised ? "Yes" : "No"],
+    ["Baptism name", s.baptism_name || "-"],
     ["Status", <StatusBadge key="s" status={s.status} />],
   ];
 

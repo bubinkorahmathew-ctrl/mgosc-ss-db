@@ -28,7 +28,7 @@ export function StudentForm({ student, classes, teacherClassId }: {
   const [serverErrors, setServerErrors] = useState<Record<string, string[]>>();
   const form = useForm<In, unknown, Out>({
     resolver: zodResolver(studentSchema),
-    defaultValues: student ?? { baptised: false, status: "active", class_id: teacherClassId ?? "" },
+    defaultValues: student ?? { status: "active", class_id: teacherClassId ?? "" },
   });
   const { errors } = form.formState;
 

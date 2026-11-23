@@ -22,7 +22,7 @@ export function RegistrationForm() {
   const [serverErrors, setServerErrors] = useState<Record<string, string[]>>();
   const form = useForm<In, unknown, Out>({
     resolver: zodResolver(registrationSchema),
-    defaultValues: { baptised: false, website: "" },
+    defaultValues: { website: "" },
   });
 
   const onSubmit = form.handleSubmit((values) =>

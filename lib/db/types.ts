@@ -9,7 +9,8 @@ export type CertificateType =
   | "completion" | "merit" | "attendance" | "participation" | "memory_verse" | "custom";
 
 export type ProfileRow = {
-  id: string; full_name: string; phone: string | null; role: UserRole; active: boolean; created_at: string;
+  id: string; full_name: string; phone: string | null; twelfth_passed_year: number | null;
+  role: UserRole; active: boolean; created_at: string;
 };
 export type AcademicYearRow = {
   id: string; name: string; start_date: string; end_date: string; is_current: boolean;
@@ -22,7 +23,8 @@ type PersonalFields = {
   full_name: string; full_name_ml: string | null; dob: string; gender: Gender;
   father_name: string | null; mother_name: string | null; guardian_phone: string;
   address: string | null; baptised: boolean; school_class: string; school_name: string | null;
-  prayer_group: string | null;
+  prayer_group: string | null; baptism_name: string | null;
+  father_phone: string | null; email: string | null;
 };
 export type StudentRow = PersonalFields & {
   id: string; admission_no: string; photo_url: string | null; status: StudentStatus;
@@ -58,6 +60,8 @@ export type CertificateRow = {
 export type SchoolSettingsRow = {
   id: number; school_name: string; address: string | null; logo_url: string | null;
   headmaster_name: string | null; signature_url: string | null;
-  certificate_wording: Partial<Record<CertificateType, string>>; updated_at: string;
+  certificate_wording: Partial<Record<CertificateType, string>>;
+  /** read it with readNavStyle() */
+  nav_icons: unknown; updated_at: string;
 };
 export type NumberCounterRow = { kind: "admission" | "certificate"; year: number; last_value: number };

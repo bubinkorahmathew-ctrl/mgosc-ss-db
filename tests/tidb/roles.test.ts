@@ -145,6 +145,15 @@ describe("admin", () => {
     expect(await admin().delete("school_settings", one)).toEqual([]);
     expect(await s.as(IDS.headmaster).update("school_settings", { school_name: "x" }, one)).toHaveLength(1);
   });
+  it("cannot change the menu icons; the super admin can, and everyone reads them", async () => {
+    const one: Condition[] = [["id", "eq", 1]];
+    const style = { "/admin/students": { icon: "church", color: "purple" } };
+    expect(await admin().update("school_settings", { nav_icons: style }, one)).toEqual([]);
+    expect(await s.as(IDS.teacher1).update("school_settings", { nav_icons: style }, one)).toEqual([]);
+    const [saved] = await s.as(IDS.headmaster).update("school_settings", { nav_icons: style }, one);
+    expect(saved.nav_icons).toEqual(style);
+    expect((await s.as(IDS.teacher1).select("school_settings"))[0].nav_icons).toEqual(style);
+  });
   it("cannot use the teacher account functions on admins", async () => {
     await expect(resetTeacherAccountPassword(s.database, ADMIN, IDS.headmaster)).rejects.toThrow(/not a teacher/);
     await expect(setTeacherAccountActive(s.database, ADMIN, OTHER_ADMIN, false)).rejects.toThrow(/not a teacher/);

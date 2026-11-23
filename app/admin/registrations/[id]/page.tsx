@@ -32,9 +32,11 @@ export default async function RegistrationDetail({ params }: PageProps<"/admin/r
     ["Prayer group", r.prayer_group || "-"],
     ["Father", r.father_name || "-"],
     ["Mother", r.mother_name || "-"],
+    ["Father's mobile", r.father_phone ? <a key="f" className="text-primary underline" href={`tel:${r.father_phone}`}>{r.father_phone}</a> : "-"],
     ["Guardian phone", <a key="p" className="text-primary underline" href={`tel:${r.guardian_phone}`}>{r.guardian_phone}</a>],
+    ["Email", r.email || "-"],
     ["Address", r.address || "-"],
-    ["Baptised", r.baptised ? "Yes" : "No"],
+    ["Baptism name", r.baptism_name || "-"],
     ["Submitted", formatDate(r.submitted_at)],
   ];
 

@@ -17,11 +17,11 @@ type SP = Record<string, string | string[] | undefined>;
 export type ClassOpt = { id: string; label: string };
 const SHOW_MAX = 500;
 
-export function ReportTabs({ base, tab, tabs, keep }: {
-  base: string; tab: string; tabs: { id: string; label: string }[]; keep?: Record<string, string | undefined>;
+export function ReportTabs({ base, tab, tabs, keep, label = "Reports" }: {
+  base: string; tab: string; tabs: { id: string; label: string }[]; keep?: Record<string, string | undefined>; label?: string;
 }) {
   return (
-    <nav aria-label="Reports" className="mb-4 flex gap-1 overflow-x-auto border-b">
+    <nav aria-label={label}className="mb-4 flex gap-1 overflow-x-auto border-b">
       {tabs.map((t) => (
         <Link key={t.id} href={`${base}?${toQuery({ ...keep, tab: t.id })}`} aria-current={t.id === tab ? "page" : undefined}
           className={cn("min-h-11 shrink-0 border-b-2 px-3 pt-3 text-sm font-medium",

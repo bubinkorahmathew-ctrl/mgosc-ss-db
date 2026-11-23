@@ -5,7 +5,7 @@ export type XlsxColumn = { header: string; key: string; width?: number };
 export type XlsxSheet = { name: string; title?: string; columns: XlsxColumn[]; rows: Record<string, unknown>[] };
 
 /** Neutralise spreadsheet formula injection (=, +, -, @ at the start of text). */
-function safeCell(v: unknown) {
+export function safeCell(v: unknown) {
   if (typeof v === "string" && /^[=+\-@\t\r]/.test(v)) return `'${v}`;
   return v ?? "";
 }

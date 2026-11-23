@@ -2,14 +2,16 @@ import { Suspense } from "react";
 import { requireRole } from "@/lib/auth";
 import { APP_NAME } from "@/lib/config";
 import { AppShell } from "@/components/layout/app-shell";
-import { ADMIN_NAV } from "@/components/layout/nav-config";
+import { ADMIN_NAV, styleNav } from "@/components/layout/nav-config";
+import { getNavStyle } from "@/lib/data/settings";
 import { ShellSkeleton } from "@/components/layout/shell-skeleton";
 
 async function AdminShell({ children }: { children: React.ReactNode }) {
   const user = await requireRole("headmaster");
+  const nav = styleNav(ADMIN_NAV, await getNavStyle());
   return (
     <AppShell appName={APP_NAME} root="/admin"
-      nav={user.superAdmin ? ADMIN_NAV : ADMIN_NAV.filter((item) => !item.superOnly)}
+      nav={user.superAdmin ? nav : nav.filter((item) => !item.superOnly)}
       userName={user.profile.full_name} roleLabel={user.superAdmin ? "Super admin" : "Admin"}>
       {children}
     </AppShell>

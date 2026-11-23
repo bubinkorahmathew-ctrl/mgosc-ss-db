@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { registrationSchema } from "@/lib/validation/registration";
+import { createTeacherSchema } from "@/lib/validation/staff";
 import { checkAndRecord, clientIp, hashIp, type AttemptStore } from "@/lib/rate-limit";
 import { sanitizeSearch } from "@/lib/data/students";
 import { generateTempPassword } from "@/lib/password";
@@ -12,7 +13,7 @@ const valid = {
   guardian_phone: "94470 00011",
   school_class: "Grade 1",
   school_name: "St. Mary's School",
-  baptised: true,
+  baptism_name: "  Mariam ",
   website: "",
 };
 
@@ -23,7 +24,32 @@ describe("registration validation", () => {
     expect(r.guardian_phone).toBe("9447000011");
     expect(r.father_name).toBeNull();
     expect(r.prayer_group).toBe("St. Thomas Prayer Group");
-    expect(r.baptised).toBe(true);
+    expect(r.baptism_name).toBe("Mariam");
+  });
+
+  it("father's mobile and email are optional and checked", () => {
+    const r = registrationSchema.parse({ ...valid, father_phone: "98470 12345", email: "  Parent@Example.COM " });
+    expect([r.father_phone, r.email]).toEqual(["9847012345", "parent@example.com"]);
+    expect(registrationSchema.parse({ ...valid, father_phone: "", email: "" })).toMatchObject({ father_phone: null, email: null });
+    expect(registrationSchema.safeParse({ ...valid, father_phone: "123" }).success).toBe(false);
+    expect(registrationSchema.safeParse({ ...valid, email: "not-an-email" }).success).toBe(false);
+  });
+
+  it("teacher 12th passed year is optional, a real past year", () => {
+    const base = { full_name: "T", email: "t@example.com", class_ids: [] };
+    expect(createTeacherSchema.parse({ ...base, twelfth_passed_year: "2010" }).twelfth_passed_year).toBe(2010);
+    expect(createTeacherSchema.parse({ ...base, twelfth_passed_year: "" }).twelfth_passed_year).toBeNull();
+    expect(createTeacherSchema.parse(base).twelfth_passed_year).toBeNull();
+    for (const bad of ["1949", "2999", "20x0", "2010.5"]) {
+      expect(createTeacherSchema.safeParse({ ...base, twelfth_passed_year: bad }).success).toBe(false);
+    }
+  });
+
+  it("asks for a baptism name instead of yes/no baptised", () => {
+    expect(registrationSchema.parse({ ...valid, baptised: true })).not.toHaveProperty("baptised");
+    expect(registrationSchema.parse({ ...valid, baptism_name: "" }).baptism_name).toBeNull();
+    expect(registrationSchema.safeParse({ ...valid, baptism_name: "x".repeat(121) }).success).toBe(false);
+    expect(registrationSchema.safeParse({ ...valid, baptism_name: "<i>x</i>" }).success).toBe(false);
   });
 
   it("accepts Malayalam in every text field", () => {

@@ -25,7 +25,8 @@ export default async function EditStudentPage({ params }: PageProps<"/admin/stud
         student={{
           id: s.id, full_name: s.full_name, dob: s.dob, gender: s.gender,
           father_name: s.father_name ?? "", mother_name: s.mother_name ?? "", guardian_phone: s.guardian_phone,
-          address: s.address ?? "", baptised: s.baptised, school_class: s.school_class as never,
+          father_phone: s.father_phone ?? "", email: s.email ?? "",
+          address: s.address ?? "", baptism_name: s.baptism_name ?? "", school_class: s.school_class as never,
           school_name: s.school_name ?? "", prayer_group: s.prayer_group ?? "", class_id: s.class_id ?? "", status: s.status,
         }} />
     </>

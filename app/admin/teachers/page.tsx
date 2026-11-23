@@ -47,6 +47,7 @@ export default async function TeachersPage() {
                     </p>
                     <p className="truncate text-sm text-muted-foreground">
                       {emails.get(t.id)}{t.phone ? ` · ${t.phone}` : ""}
+                      {t.twelfth_passed_year ? ` · 12th passed ${t.twelfth_passed_year}` : ""}
                     </p>
                     <p className="text-sm">
                       {current.length
@@ -55,7 +56,8 @@ export default async function TeachersPage() {
                     </p>
                   </div>
                   <TeacherRowActions classes={classOptions}
-                    teacher={{ id: t.id, full_name: t.full_name, phone: t.phone ?? "", active: t.active,
+                    teacher={{ id: t.id, full_name: t.full_name, email: emails.get(t.id) ?? "", phone: t.phone ?? "",
+                      twelfth_passed_year: t.twelfth_passed_year, active: t.active,
                       class_ids: current.map((c) => c.id) }} />
                 </CardContent>
               </Card>

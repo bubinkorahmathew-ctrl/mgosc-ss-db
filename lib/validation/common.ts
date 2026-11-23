@@ -31,6 +31,18 @@ export const optionalPhone = z.string().optional().nullable()
   .transform((v) => (v ? v.replace(/[\s-]/g, "") : null))
   .pipe(z.string().regex(/^\+?\d{10,15}$/, "Enter a valid phone number (10 digits).").nullable());
 
+export const optionalEmail = z.string().optional().nullable()
+  .transform((v) => (v ? v.trim().toLowerCase() || null : null))
+  .pipe(z.email("Enter a valid email address.").max(254, "Email is too long.").nullable());
+
+/** Year of passing 12th standard: optional, 1950 to this year. Accepts "2010" from a form. */
+export const optionalPassYear = z.union([z.number(), z.string(), z.null()]).optional()
+  .transform((v) => (v === "" || v === null || v === undefined ? null : Number(v)))
+  .pipe(z.number({ error: "Enter a year like 2010." }).int("Enter a year like 2010.")
+    .min(1950, "Enter a year from 1950.")
+    .refine((y) => y <= Number(todayISO().slice(0, 4)), "The year cannot be in the future.")
+    .nullable());
+
 export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter a valid date.")
   .refine((s) => !Number.isNaN(Date.parse(s)), "Enter a valid date.");
 
@@ -55,12 +67,14 @@ export const personalFields = z.object({
   gender: genderEnum,
   father_name: optionalText("Father's name", 120),
   mother_name: optionalText("Mother's name", 120),
+  father_phone: optionalPhone,
   guardian_phone: phone,
+  email: optionalEmail,
   address: optionalText("Address", 500),
-  baptised: boolish,
   school_class: schoolClass,
   school_name: optionalText("School name", 160),
   prayer_group: optionalText("Prayer group name", 120),
+  baptism_name: optionalText("Baptism name", 120),
 });
 export type PersonalFields = z.output<typeof personalFields>;
 export type PersonalFieldsInput = z.input<typeof personalFields>;

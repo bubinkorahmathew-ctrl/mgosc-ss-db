@@ -37,6 +37,9 @@ export async function updateTeacher(input: unknown): Promise<ActionResult> {
     revalidateTeachers();
     return { ok: true, message: "Teacher updated." };
   } catch (e) {
+    if ((e as { code?: string } | null)?.code === "23505") {
+      return { ok: false, error: "A user with this email already exists.", fieldErrors: { email: ["A user with this email already exists."] } };
+    }
     return toActionError(e);
   }
 }

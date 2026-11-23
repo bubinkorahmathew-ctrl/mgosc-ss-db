@@ -44,7 +44,13 @@ async function syncClasses(tx: Executor, teacherId: string, classIds: string[]) 
   if (add.length) await tx.query("insert into class_teachers (class_id, teacher_id) values ?", [add.map((id) => [id, teacherId])]);
 }
 
-type TeacherDetails = { full_name: string; phone: string | null; class_ids: string[] };
+/** twelfth_passed_year: undefined keeps what is saved (on update). */
+type TeacherDetails = { full_name: string; phone: string | null; twelfth_passed_year?: number | null; class_ids: string[] };
+
+async function assertEmailFree(tx: Executor, email: string, except: string | null) {
+  const [taken] = await tx.query<{ id: string }>("select id from users where email = ? for update", [email]);
+  if (taken && taken.id !== except) throw new DbError("duplicate key: email already exists", "23505");
+}
 
 /** Login, profile and classes are created together or not at all. */
 export async function createTeacherAccount(
@@ -55,11 +61,10 @@ export async function createTeacherAccount(
   const id = randomUUID();
   await database.transaction(async (tx) => {
     await requireHeadmaster(tx, actorId);
-    const [taken] = await tx.query("select id from users where email = ? for update", [input.email]);
-    if (taken) throw new DbError("duplicate key: email already exists", "23505");
+    await assertEmailFree(tx, input.email, null);
     await validateRows(tx, "profiles", [{ full_name: input.full_name }], NO_FACTS, null);
-    await tx.query("insert into profiles (id, full_name, phone, role) values (?, ?, ?, 'teacher')",
-      [id, input.full_name, input.phone]);
+    await tx.query("insert into profiles (id, full_name, phone, twelfth_passed_year, role) values (?, ?, ?, ?, 'teacher')",
+      [id, input.full_name, input.phone, input.twelfth_passed_year ?? null]);
     await tx.query("insert into users (id, email, password_hash) values (?, ?, ?)", [id, input.email, hash]);
     await syncClasses(tx, id, input.class_ids);
   });
@@ -67,7 +72,7 @@ export async function createTeacherAccount(
 }
 
 export async function updateTeacherAccount(
-  database: Database, actorId: string, teacherId: string, input: TeacherDetails,
+  database: Database, actorId: string, teacherId: string, input: TeacherDetails & { email?: string },
 ): Promise<void> {
   const id = toId(teacherId);
   await database.transaction(async (tx) => {
@@ -75,6 +80,14 @@ export async function updateTeacherAccount(
     await lockTeacher(tx, id);
     await validateRows(tx, "profiles", [{ full_name: input.full_name }], NO_FACTS, null);
     await tx.query("update profiles set full_name = ?, phone = ? where id = ?", [input.full_name, input.phone, id]);
+    if (input.twelfth_passed_year !== undefined) {
+      await tx.query("update profiles set twelfth_passed_year = ? where id = ?", [input.twelfth_passed_year, id]);
+    }
+    if (input.email) {
+      // the sign-in email; the teacher signs in with the new one from now on
+      await assertEmailFree(tx, input.email, id);
+      await tx.query("update users set email = ? where id = ?", [input.email, id]);
+    }
     await syncClasses(tx, id, input.class_ids);
   });
 }
