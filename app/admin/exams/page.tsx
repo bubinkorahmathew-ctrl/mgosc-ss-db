@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FileText, PencilLine } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { getAcademicYears } from "@/lib/data/classes";
 import { classLabel } from "@/lib/format";
 import { formatDate } from "@/lib/dates";
@@ -18,12 +18,12 @@ export default async function ExamsPage({ searchParams }: PageProps<"/admin/exam
   const years = await getAcademicYears();
   const year = years.find((y) => y.id === sp.year) ?? years.find((y) => y.is_current) ?? years[0];
 
-  const supabase = await createClient();
+  const dbc = await createClient();
   const [{ data: subjects }, { data: classes }, { data: exams }] = await Promise.all([
-    supabase.from("subjects").select("id, name, max_marks, sort_order").order("sort_order").order("name"),
-    year ? supabase.from("classes").select("id, name, section").eq("academic_year_id", year.id).order("name")
+    dbc.from("subjects").select("id, name, max_marks, sort_order").order("sort_order").order("name"),
+    year ? dbc.from("classes").select("id, name, section").eq("academic_year_id", year.id).order("name")
       : Promise.resolve({ data: [] as { id: string; name: string; section: string | null }[] }),
-    year ? supabase.from("exams").select("id, name, exam_date, class_id, marks(count)").eq("academic_year_id", year.id)
+    year ? dbc.from("exams").select("id, name, exam_date, class_id, marks(count)").eq("academic_year_id", year.id)
       .order("exam_date", { ascending: false, nullsFirst: false }).order("name")
       : Promise.resolve({ data: [] as never[] }),
   ]);

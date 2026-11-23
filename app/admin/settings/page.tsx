@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { redirect } from "next/navigation";
+import { requireRole } from "@/lib/auth";
 import { getSettings } from "@/lib/data/settings";
 import { PageHeader } from "@/components/page-header";
 import { SettingsForm, SignatureUpload } from "./settings-form";
@@ -6,6 +8,7 @@ import { SettingsForm, SignatureUpload } from "./settings-form";
 export const metadata: Metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
+  if (!(await requireRole("headmaster")).superAdmin) redirect("/admin");
   const s = await getSettings();
   return (
     <>

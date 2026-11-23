@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { formatDate } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { EmptyState, PageHeader } from "@/components/page-header";
@@ -15,8 +15,8 @@ type Tab = (typeof TABS)[number];
 export default async function RegistrationsPage({ searchParams }: PageProps<"/admin/registrations">) {
   const sp = await searchParams;
   const status: Tab = TABS.includes(sp.status as Tab) ? (sp.status as Tab) : "pending";
-  const supabase = await createClient();
-  const { data: rows } = await supabase
+  const dbc = await createClient();
+  const { data: rows } = await dbc
     .from("registrations")
     .select("id, full_name, full_name_ml, dob, school_class, guardian_phone, status, submitted_at")
     .eq("status", status)

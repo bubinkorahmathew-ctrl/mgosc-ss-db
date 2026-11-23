@@ -17,8 +17,10 @@ import { Card, CardContent } from "@/components/ui/card";
 type In = z.input<typeof studentSchema>;
 type Out = z.output<typeof studentSchema>;
 
-export function StudentForm({ student, classes }: {
+export function StudentForm({ student, classes, teacherClassId }: {
   student?: In & { id: string };
+  /** set on the teacher's form: own classes only, always active */
+  teacherClassId?: string;
   classes: { id: string; label: string }[];
 }) {
   const router = useRouter();
@@ -26,7 +28,7 @@ export function StudentForm({ student, classes }: {
   const [serverErrors, setServerErrors] = useState<Record<string, string[]>>();
   const form = useForm<In, unknown, Out>({
     resolver: zodResolver(studentSchema),
-    defaultValues: student ?? { baptised: false, status: "active", class_id: "" },
+    defaultValues: student ?? { baptised: false, status: "active", class_id: teacherClassId ?? "" },
   });
   const { errors } = form.formState;
 
@@ -42,7 +44,7 @@ export function StudentForm({ student, classes }: {
         const res = await createStudent(values);
         if (!res.ok) { setServerErrors(res.fieldErrors); toast.error(res.error); return; }
         toast.success(res.message ?? "Student added.");
-        router.push(`/admin/students/${res.data!.id}`);
+        router.push(`/${teacherClassId ? "teacher" : "admin"}/students/${res.data!.id}`);
       }
     }),
   );
@@ -55,17 +57,19 @@ export function StudentForm({ student, classes }: {
           <div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
             <Field id="class_id" label="Sunday School class" error={errors.class_id?.message}>
               <NativeSelect id="class_id" {...form.register("class_id")}>
-                <option value="">No class</option>
+                {!teacherClassId && <option value="">No class</option>}
                 {classes.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
               </NativeSelect>
             </Field>
-            <Field id="status" label="Status" error={errors.status?.message}>
-              <NativeSelect id="status" {...form.register("status")}>
-                <option value="active">Active</option>
-                <option value="inactive">Inactive</option>
-                <option value="passed_out">Passed out</option>
-              </NativeSelect>
-            </Field>
+            {!teacherClassId && (
+              <Field id="status" label="Status" error={errors.status?.message}>
+                <NativeSelect id="status" {...form.register("status")}>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                  <option value="passed_out">Passed out</option>
+                </NativeSelect>
+              </Field>
+            )}
           </div>
           <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
             <Button type="button" variant="outline" onClick={() => router.back()} disabled={pending}>Cancel</Button>

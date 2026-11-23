@@ -22,13 +22,6 @@ export const optionalText = (label: string, max = 200) =>
     .pipe(z.string().max(max, `${label} is too long.`)
       .regex(SAFE_TEXT, `${label} contains characters that are not allowed.`).nullable());
 
-/** Malayalam script only (plus spaces, dots, ZWJ/ZWNJ). Empty -> null. */
-export const malayalamName = z.string().optional().nullable()
-  .transform((v) => (v == null ? null : clean(v) || null))
-  .pipe(z.string().max(120, "Name is too long.")
-    .regex(/^[ഀ-ൿ‌‍ .]+$/, "Please type the name using Malayalam letters.")
-    .nullable());
-
 /** Indian mobile/landline: 10-15 digits, optional +, spaces or dashes allowed. Stored as digits (+ kept). */
 export const phone = z.string({ error: "Phone number is required." })
   .transform((v) => v.replace(/[\s-]/g, ""))
@@ -58,7 +51,6 @@ export const boolish = z.union([z.boolean(), z.string()])
 /** The personal fields shared by registrations and students. */
 export const personalFields = z.object({
   full_name: requiredText("Child's name"),
-  full_name_ml: malayalamName,
   dob,
   gender: genderEnum,
   father_name: optionalText("Father's name", 120),
@@ -68,6 +60,7 @@ export const personalFields = z.object({
   baptised: boolish,
   school_class: schoolClass,
   school_name: optionalText("School name", 160),
+  prayer_group: optionalText("Prayer group name", 120),
 });
 export type PersonalFields = z.output<typeof personalFields>;
 export type PersonalFieldsInput = z.input<typeof personalFields>;

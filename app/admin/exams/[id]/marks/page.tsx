@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { getClassStudents } from "@/lib/data/teacher-context";
 import { classLabel } from "@/lib/format";
 import { formatDate } from "@/lib/dates";
@@ -15,15 +15,15 @@ export const metadata: Metadata = { title: "Enter marks" };
 export default async function AdminMarksPage({ params }: PageProps<"/admin/exams/[id]/marks">) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const supabase = await createClient();
-  const { data: exam } = await supabase.from("exams")
+  const dbc = await createClient();
+  const { data: exam } = await dbc.from("exams")
     .select("id, name, exam_date, class_id, academic_year_id, classes(name, section)").eq("id", id).maybeSingle();
   if (!exam || !exam.classes) notFound();
 
   const [{ data: subjects }, students, { data: marks }] = await Promise.all([
-    supabase.from("subjects").select("id, name, max_marks").order("sort_order").order("name"),
+    dbc.from("subjects").select("id, name, max_marks").order("sort_order").order("name"),
     getClassStudents(exam.class_id),
-    supabase.from("marks").select("student_id, subject_id, marks_obtained").eq("exam_id", id),
+    dbc.from("marks").select("student_id, subject_id, marks_obtained").eq("exam_id", id),
   ]);
   const initial: Record<string, Record<string, number>> = {};
   for (const m of marks ?? []) (initial[m.student_id] ??= {})[m.subject_id] = Number(m.marks_obtained);

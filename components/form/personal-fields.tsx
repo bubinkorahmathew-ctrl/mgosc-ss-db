@@ -12,23 +12,17 @@ type Props = {
   register: UseFormRegister<any>;
   errors: FieldErrors<PersonalFieldsInput>;
   serverErrors?: Record<string, string[]>;
-  /** wording for the public form vs. staff form */
-  audience?: "parent" | "staff";
 };
 
 /** Fields shared by the public registration form and the student form. */
-export function PersonalFieldsFieldset({ register, errors, serverErrors, audience = "staff" }: Props) {
+export function PersonalFieldsFieldset({ register, errors, serverErrors }: Props) {
   const e = (name: keyof PersonalFieldsInput) => firstError(errors[name] as { message?: string }, serverErrors, name);
   const invalid = (name: keyof PersonalFieldsInput) => !!e(name) || undefined;
 
   return (
     <div className="grid gap-4 sm:grid-cols-2">
-      <Field id="full_name" label="Child's full name (English)" required error={e("full_name")} className="sm:col-span-2">
+      <Field id="full_name" label="Child's full name" required error={e("full_name")} className="sm:col-span-2">
         <Input id="full_name" autoComplete="off" aria-invalid={invalid("full_name")} {...register("full_name")} />
-      </Field>
-      <Field id="full_name_ml" label="Child's name in Malayalam" error={e("full_name_ml")} className="sm:col-span-2"
-        hint={audience === "parent" ? "Optional. Used on certificates, e.g. ആരോൺ മാത്യു" : "Optional"}>
-        <Input id="full_name_ml" lang="ml" autoComplete="off" aria-invalid={invalid("full_name_ml")} {...register("full_name_ml")} />
       </Field>
       <Field id="dob" label="Date of birth" required error={e("dob")}>
         {/* no `max` attribute: it would be frozen at build time in the prerendered form; Zod rejects future dates */}
@@ -55,6 +49,9 @@ export function PersonalFieldsFieldset({ register, errors, serverErrors, audienc
       </Field>
       <Field id="mother_name" label="Mother's name" error={e("mother_name")}>
         <Input id="mother_name" aria-invalid={invalid("mother_name")} {...register("mother_name")} />
+      </Field>
+      <Field id="prayer_group" label="Prayer group name" error={e("prayer_group")} className="sm:col-span-2" hint="Optional">
+        <Input id="prayer_group" autoComplete="off" aria-invalid={invalid("prayer_group")} {...register("prayer_group")} />
       </Field>
       <Field id="guardian_phone" label="Parent / guardian phone" required error={e("guardian_phone")}>
         <Input id="guardian_phone" type="tel" inputMode="tel" autoComplete="tel"

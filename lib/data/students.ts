@@ -1,19 +1,19 @@
 import "server-only";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import type { StudentFilters } from "@/lib/validation/student";
 
 export const STUDENTS_PAGE_SIZE = 50;
 
-/** Strip characters that have meaning in PostgREST filter strings. */
+/** Strip LIKE wildcards and punctuation from search text. (Values are always sent as parameters.) */
 export function sanitizeSearch(q: string): string {
   return q.replace(/[,()*%\\:"']/g, " ").replace(/\s+/g, " ").trim().slice(0, 100);
 }
 
 /** Students list for the caller (RLS limits teachers to their classes). */
 export async function listStudents(f: StudentFilters) {
-  const supabase = await createClient();
+  const dbc = await createClient();
   const page = f.page ?? 1;
-  let query = supabase
+  let query = dbc
     .from("students")
     .select("id, admission_no, full_name, full_name_ml, dob, gender, school_class, guardian_phone, status, class_id, classes(name, section)",
       { count: "exact" })
@@ -29,9 +29,12 @@ export async function listStudents(f: StudentFilters) {
     const q = sanitizeSearch(f.q);
     if (q) {
       const like = `%${q}%`;
-      query = query.or(
-        `full_name.ilike.${like},full_name_ml.ilike.${like},admission_no.ilike.${like},guardian_phone.ilike.${like}`,
-      );
+      query = query.or([
+        ["full_name", "ilike", like],
+        ["admission_no", "ilike", like],
+        ["guardian_phone", "ilike", like],
+        ["prayer_group", "ilike", like],
+      ]);
     }
   }
   const from = (page - 1) * STUDENTS_PAGE_SIZE;

@@ -2,7 +2,7 @@ import type { NextRequest } from "next/server";
 import { apiUser, getBranding, pdfResponse, textResponse } from "@/lib/api";
 import { uuid } from "@/lib/validation/common";
 import { getExamResults } from "@/lib/data/results";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { renderReportCards } from "@/lib/pdf/report-card";
 
 /** GET /api/pdf/report-cards?exam=<id>[&student=<id>][&download=1] */
@@ -22,8 +22,8 @@ export async function GET(req: NextRequest) {
   if (ids && !data.results.some((r) => r.id === ids[0])) return textResponse(404, "Student not found in this exam.");
   if (!data.results.length) return textResponse(404, "There are no students in this exam.");
 
-  const supabase = await createClient();
-  const { data: teachers } = await supabase.from("class_teachers")
+  const dbc = await createClient();
+  const { data: teachers } = await dbc.from("class_teachers")
     .select("profiles(full_name)").eq("class_id", data.exam.class_id);
   const classTeacherName = (teachers ?? []).map((t) => t.profiles?.full_name).filter(Boolean).join(", ") || null;
 

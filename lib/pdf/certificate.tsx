@@ -3,7 +3,7 @@ import QRCode from "qrcode";
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { PDF_FONT, PDF_SERIF, registerPdfFonts } from "./fonts";
 import { BANNER_RATIO, type PdfImage } from "./images";
-import type { CertificateRow } from "@/lib/supabase/types";
+import type { CertificateRow } from "@/lib/db/types";
 import { formatDate } from "@/lib/dates";
 import { publicEnv } from "@/lib/env";
 

@@ -2,8 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { createClient } from "@/lib/supabase/server";
-import { assertClassAccess, assertRole, AuthError } from "@/lib/auth";
+import { createClient } from "@/lib/db/server";
+import { assertRole, AuthError } from "@/lib/auth";
 import { uuid } from "@/lib/validation/common";
 import { issueCertificatesSchema } from "@/lib/validation/certificates";
 import { fillTemplate, unfilledPlaceholders, PLACEHOLDER_HELP, type Placeholder } from "@/lib/certificates";
@@ -19,22 +19,18 @@ function revalidateCerts() {
 
 export async function issueCertificates(input: unknown): Promise<ActionResult<{ ids: string[] }>> {
   try {
-    const user = await assertRole("teacher", "headmaster");
+    const user = await assertRole("headmaster");
     const v = issueCertificatesSchema.parse(input);
-    await assertClassAccess(user, v.class_id);
-    const supabase = await createClient();
+    const dbc = await createClient();
 
-    const { data: cls } = await supabase.from("classes")
+    const { data: cls } = await dbc.from("classes")
       .select("id, name, section, academic_years(name)").eq("id", v.class_id).maybeSingle();
     if (!cls) throw new AuthError("That class is not available to you.");
 
-    const { data: students, error: sErr } = await supabase.from("students")
+    const { data: students, error: sErr } = await dbc.from("students")
       .select("id, full_name, class_id").in("id", v.student_ids);
     if (sErr) throw sErr;
     if ((students ?? []).length !== v.student_ids.length) throw new AuthError("Some students are not available to you.");
-    if (user.profile.role !== "headmaster" && students!.some((s) => s.class_id !== v.class_id)) {
-      throw new AuthError("Some students are not in this class.");
-    }
 
     // what {exam} and {rank} mean for this certificate
     let examText: string | undefined;
@@ -46,7 +42,7 @@ export async function issueCertificates(input: unknown): Promise<ActionResult<{ 
       ranks = new Map(results.results.map((r) => [r.id, r.rank]));
     }
     if (v.activity_id) {
-      const { data: act } = await supabase.from("activities").select("title, class_id").eq("id", v.activity_id).maybeSingle();
+      const { data: act } = await dbc.from("activities").select("title, class_id").eq("id", v.activity_id).maybeSingle();
       if (!act || act.class_id !== v.class_id) return { ok: false, error: "That activity is not for this class." };
       examText = act.title;
     }
@@ -71,7 +67,7 @@ export async function issueCertificates(input: unknown): Promise<ActionResult<{ 
     }
 
     // one statement = one transaction: numbers are assigned by the database, gap-free
-    const { data: inserted, error } = await supabase.from("certificates").insert(rows).select("id");
+    const { data: inserted, error } = await dbc.from("certificates").insert(rows).select("id");
     if (error) throw error;
     revalidateCerts();
     for (const s of students!) revalidatePath(`/admin/students/${s.id}`);
@@ -88,8 +84,8 @@ export async function setCertificateRevoked(input: unknown): Promise<ActionResul
   try {
     await assertRole("headmaster");
     const { id, revoked } = revokeSchema.parse(input);
-    const supabase = await createClient();
-    const { data, error } = await supabase.from("certificates").update({ revoked }).eq("id", id).select("id");
+    const dbc = await createClient();
+    const { data, error } = await dbc.from("certificates").update({ revoked }).eq("id", id).select("id");
     if (error) throw error;
     if (!data?.length) return { ok: false, error: "Certificate not found." };
     revalidateCerts();

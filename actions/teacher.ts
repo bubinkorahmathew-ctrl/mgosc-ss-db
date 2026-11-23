@@ -1,8 +1,11 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { assertClassAccess, assertRole, AuthError } from "@/lib/auth";
+import { changePassword } from "@/lib/authn/login";
+import { requestClient, setSessionCookie } from "@/lib/authn/request";
+import { getDatabase } from "@/lib/db";
 import { activitySchema, saveAttendanceSchema, saveMarksSchema } from "@/lib/validation/teacher";
 import { changePasswordSchema } from "@/lib/validation/staff";
 import { z } from "zod";
@@ -10,8 +13,8 @@ import { toActionError, type ActionResult } from "@/lib/action-result";
 
 /** Ensure every student id belongs to the class (server re-check on top of RLS + triggers). */
 async function assertStudentsInClass(classId: string, studentIds: string[]) {
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("students").select("id").eq("class_id", classId).in("id", studentIds);
+  const dbc = await createClient();
+  const { data, error } = await dbc.from("students").select("id").eq("class_id", classId).in("id", studentIds);
   if (error) throw error;
   if ((data ?? []).length !== new Set(studentIds).size) throw new AuthError("Some students are not in this class.");
 }
@@ -26,8 +29,8 @@ export async function saveAttendance(input: unknown): Promise<ActionResult<{ sav
     await assertClassAccess(user, class_id);
     await assertStudentsInClass(class_id, entries.map((e) => e.student_id));
 
-    const supabase = await createClient();
-    const { error } = await supabase.from("attendance").upsert(
+    const dbc = await createClient();
+    const { error } = await dbc.from("attendance").upsert(
       entries.map((e) => ({ student_id: e.student_id, class_id, date, status: e.status, marked_by: user.id })),
       { onConflict: "student_id,date" },
     );
@@ -48,19 +51,19 @@ export async function saveMarks(input: unknown): Promise<ActionResult<{ saved: n
   try {
     const user = await assertRole("teacher", "headmaster");
     const { exam_id, rows } = saveMarksSchema.parse(input);
-    const supabase = await createClient();
+    const dbc = await createClient();
 
     // RLS: a teacher only sees exams of their own classes
-    const { data: exam } = await supabase.from("exams").select("id, class_id").eq("id", exam_id).maybeSingle();
+    const { data: exam } = await dbc.from("exams").select("id, class_id").eq("id", exam_id).maybeSingle();
     if (!exam) throw new AuthError("That exam is not available to you.");
     await assertClassAccess(user, exam.class_id);
     await assertStudentsInClass(exam.class_id, rows.map((r) => r.student_id));
 
-    const { data: subjects, error: sErr } = await supabase.from("subjects").select("id, name, max_marks");
+    const { data: subjects, error: sErr } = await dbc.from("subjects").select("id, name, max_marks");
     if (sErr) throw sErr;
     const subjectMap = new Map((subjects ?? []).map((s) => [s.id, s]));
 
-    const { data: existing, error: eErr } = await supabase.from("marks")
+    const { data: existing, error: eErr } = await dbc.from("marks")
       .select("id, student_id, subject_id").eq("exam_id", exam_id).in("student_id", rows.map((r) => r.student_id));
     if (eErr) throw eErr;
     const existingKey = new Map((existing ?? []).map((m) => [`${m.student_id}:${m.subject_id}`, m.id]));
@@ -95,11 +98,11 @@ export async function saveMarks(input: unknown): Promise<ActionResult<{ saved: n
     }
 
     if (upserts.length) {
-      const { error } = await supabase.from("marks").upsert(upserts, { onConflict: "exam_id,student_id,subject_id" });
+      const { error } = await dbc.from("marks").upsert(upserts, { onConflict: "exam_id,student_id,subject_id" });
       if (error) throw error;
     }
     if (toDelete.length) {
-      const { error } = await supabase.from("marks").delete().in("id", toDelete);
+      const { error } = await dbc.from("marks").delete().in("id", toDelete);
       if (error) throw error;
     }
     revalidatePath("/teacher/marks");
@@ -121,16 +124,16 @@ export async function saveActivity(input: unknown): Promise<ActionResult<{ id: s
     await assertClassAccess(user, data.class_id);
     if (data.student_id) await assertStudentsInClass(data.class_id, [data.student_id]);
 
-    const supabase = await createClient();
+    const dbc = await createClient();
     if (id) {
       // only rows of the teacher's classes are updatable (RLS); keep created_by untouched
-      const { data: rows, error } = await supabase.from("activities").update(data).eq("id", id).select("id");
+      const { data: rows, error } = await dbc.from("activities").update(data).eq("id", id).select("id");
       if (error) throw error;
       if (!rows?.length) return { ok: false, error: "Activity not found." };
       revalidatePath("/teacher/activities");
       return { ok: true, data: { id }, message: "Activity updated." };
     }
-    const { data: row, error } = await supabase.from("activities")
+    const { data: row, error } = await dbc.from("activities")
       .insert({ ...data, created_by: user.id }).select("id").single();
     if (error) throw error;
     revalidatePath("/teacher/activities");
@@ -151,19 +154,15 @@ export async function changeOwnPassword(input: unknown): Promise<ActionResult> {
   try {
     const user = await assertRole("teacher", "headmaster");
     const { current, password } = changeOwnPasswordSchema.parse(input);
-    if (!user.email) return { ok: false, error: "Your account has no email address." };
     if (current === password) return { ok: false, error: "The new password must be different.", fieldErrors: { password: ["The new password must be different."] } };
 
-    const supabase = await createClient();
-    // re-authenticate with the current password before changing it
-    const { error: authErr } = await supabase.auth.signInWithPassword({ email: user.email, password: current });
-    if (authErr) return { ok: false, error: "Current password is incorrect.", fieldErrors: { current: ["Current password is incorrect."] } };
-
-    const { error } = await supabase.auth.updateUser({ password });
-    if (error) {
-      if (/weak|short|characters/i.test(error.message)) return { ok: false, error: "Please choose a stronger password." };
-      throw error;
+    // checks the current password, signs out every other device
+    const result = await changePassword(getDatabase(), user.id, current, password, await requestClient());
+    if (!result.ok) {
+      if (result.reason === "limited") return { ok: false, error: "Too many attempts. Please wait 15 minutes and try again." };
+      return { ok: false, error: "Current password is incorrect.", fieldErrors: { current: ["Current password is incorrect."] } };
     }
+    await setSessionCookie(result.session);
     return { ok: true, message: "Password changed." };
   } catch (e) {
     return toActionError(e);

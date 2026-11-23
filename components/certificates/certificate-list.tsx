@@ -1,11 +1,11 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Download, FileStack, Search } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { sanitizeSearch } from "@/lib/data/students";
 import { CERT_LABELS, CERTIFICATE_TYPES } from "@/lib/certificates";
 import { formatDate } from "@/lib/dates";
 import { toQuery } from "@/lib/validation/reports";
-import type { CertificateType } from "@/lib/supabase/types";
+import type { CertificateType } from "@/lib/db/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Field, NativeSelect } from "@/components/form/field";
@@ -25,13 +25,13 @@ export async function CertificateList({ sp, classes, canRevoke, base }: {
   const q = sanitizeSearch(one(sp.q));
   const page = Math.max(1, Math.min(1000, Number(one(sp.page)) || 1));
 
-  const supabase = await createClient();
-  let query = supabase.from("certificates")
+  const dbc = await createClient();
+  let query = dbc.from("certificates")
     .select("id, certificate_no, type, title, student_name, class_name, year_name, issued_on, revoked", { count: "exact" })
     .order("created_at", { ascending: false });
   if (classId) query = query.eq("class_id", classId);
   if (type) query = query.eq("type", type);
-  if (q) query = query.or(`student_name.ilike.%${q}%,certificate_no.ilike.%${q}%`);
+  if (q) query = query.or([["student_name", "ilike", `%${q}%`], ["certificate_no", "ilike", `%${q}%`]]);
   const { data, count } = await query.range((page - 1) * PAGE, page * PAGE - 1);
   const rows = data ?? [];
   const pages = Math.max(1, Math.ceil((count ?? 0) / PAGE));

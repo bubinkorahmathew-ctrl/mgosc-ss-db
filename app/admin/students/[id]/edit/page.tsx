@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { getClassOptions } from "@/lib/data/classes";
 import { PageHeader } from "@/components/page-header";
 import { StudentForm } from "@/components/students/student-form";
@@ -10,9 +10,9 @@ export const metadata: Metadata = { title: "Edit student" };
 export default async function EditStudentPage({ params }: PageProps<"/admin/students/[id]/edit">) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const supabase = await createClient();
+  const dbc = await createClient();
   const [{ data: s }, classes] = await Promise.all([
-    supabase.from("students").select("*").eq("id", id).maybeSingle(),
+    dbc.from("students").select("*").eq("id", id).maybeSingle(),
     getClassOptions(),
   ]);
   if (!s) notFound();
@@ -23,10 +23,10 @@ export default async function EditStudentPage({ params }: PageProps<"/admin/stud
       <StudentForm
         classes={classes.map((c) => ({ id: c.id, label: c.isCurrent ? c.label : `${c.label} (${c.yearName})` }))}
         student={{
-          id: s.id, full_name: s.full_name, full_name_ml: s.full_name_ml ?? "", dob: s.dob, gender: s.gender,
+          id: s.id, full_name: s.full_name, dob: s.dob, gender: s.gender,
           father_name: s.father_name ?? "", mother_name: s.mother_name ?? "", guardian_phone: s.guardian_phone,
           address: s.address ?? "", baptised: s.baptised, school_class: s.school_class as never,
-          school_name: s.school_name ?? "", class_id: s.class_id ?? "", status: s.status,
+          school_name: s.school_name ?? "", prayer_group: s.prayer_group ?? "", class_id: s.class_id ?? "", status: s.status,
         }} />
     </>
   );

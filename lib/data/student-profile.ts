@@ -1,23 +1,26 @@
 import "server-only";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 
 /** Everything shown on a student profile. RLS decides whether the caller may see it. */
 export async function getStudentProfile(id: string) {
-  const supabase = await createClient();
-  const { data: student } = await supabase
+  const dbc = await createClient();
+  const { data: student } = await dbc
     .from("students").select("*, classes(id, name, section, academic_years(name))")
     .eq("id", id).maybeSingle();
   if (!student) return null;
 
   const [{ data: attendance }, { data: marks }, { data: activities }, { data: certificates }] = await Promise.all([
-    supabase.from("attendance").select("date, status").eq("student_id", id).order("date", { ascending: false }),
-    supabase.from("marks")
+    dbc.from("attendance").select("date, status").eq("student_id", id).order("date", { ascending: false }),
+    dbc.from("marks")
       .select("marks_obtained, remarks, exams(id, name, exam_date), subjects(id, name, max_marks, sort_order)")
       .eq("student_id", id),
-    supabase.from("activities").select("id, type, title, activity_date, score, notes")
-      .or(`student_id.eq.${id},and(student_id.is.null,class_id.eq.${student.class_id ?? "00000000-0000-0000-0000-000000000000"})`)
+    dbc.from("activities").select("id, type, title, activity_date, score, notes")
+      .or([
+        ["student_id", "eq", id],
+        { and: [["student_id", "is", null], ["class_id", "eq", student.class_id ?? "00000000-0000-0000-0000-000000000000"]] },
+      ])
       .order("activity_date", { ascending: false }).limit(100),
-    supabase.from("certificates").select("id, certificate_no, type, title, issued_on, revoked")
+    dbc.from("certificates").select("id, certificate_no, type, title, issued_on, revoked")
       .eq("student_id", id).order("issued_on", { ascending: false }),
   ]);
 

@@ -1,4 +1,4 @@
-import type { CertificateType } from "@/lib/supabase/types";
+import type { CertificateType } from "@/lib/db/types";
 
 export const CERTIFICATE_TYPES: CertificateType[] =
   ["completion", "merit", "attendance", "participation", "memory_verse", "custom"];

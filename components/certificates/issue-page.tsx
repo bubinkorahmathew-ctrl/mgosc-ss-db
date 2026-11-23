@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { getSettings } from "@/lib/data/settings";
 import { getClassExams } from "@/lib/data/results";
 import { getClassStudents } from "@/lib/data/teacher-context";
@@ -13,14 +13,14 @@ export async function IssuePage({ classes, classId, listHref }: {
   const cls = classes.find((c) => c.id === classId) ?? classes[0];
   if (!cls) return <EmptyState title="No classes available." />;
 
-  const supabase = await createClient();
+  const dbc = await createClient();
   const [settings, students, exams, { data: activities }, { data: clsRow }] = await Promise.all([
     getSettings(),
     getClassStudents(cls.id),
     getClassExams(cls.id),
-    supabase.from("activities").select("id, title, activity_date, students(full_name)").eq("class_id", cls.id)
+    dbc.from("activities").select("id, title, activity_date, students(full_name)").eq("class_id", cls.id)
       .neq("type", "note").order("activity_date", { ascending: false }).limit(150),
-    supabase.from("classes").select("name, section").eq("id", cls.id).maybeSingle(),
+    dbc.from("classes").select("name, section").eq("id", cls.id).maybeSingle(),
   ]);
 
   return (

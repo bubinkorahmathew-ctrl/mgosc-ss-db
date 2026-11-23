@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { getAcademicYears } from "@/lib/data/classes";
 import { classLabel } from "@/lib/format";
 import { formatDate } from "@/lib/dates";
@@ -15,14 +15,14 @@ export default async function ClassesPage({ searchParams }: PageProps<"/admin/cl
   const current = years.find((y) => y.is_current);
   const year = years.find((y) => y.id === sp.year) ?? current ?? years[0];
 
-  const supabase = await createClient();
+  const dbc = await createClient();
   const [{ data: classes }, { data: teachers }, { data: students }] = await Promise.all([
     year
-      ? supabase.from("classes").select("id, name, section, academic_year_id, class_teachers(teacher_id, profiles(full_name))")
+      ? dbc.from("classes").select("id, name, section, academic_year_id, class_teachers(teacher_id, profiles(full_name))")
           .eq("academic_year_id", year.id).order("name")
       : Promise.resolve({ data: [] as never[] }),
-    supabase.from("profiles").select("id, full_name").eq("role", "teacher").eq("active", true).order("full_name"),
-    supabase.from("students").select("class_id").eq("status", "active"),
+    dbc.from("profiles").select("id, full_name").eq("role", "teacher").eq("active", true).order("full_name"),
+    dbc.from("students").select("class_id").eq("status", "active"),
   ]);
   const counts = new Map<string, number>();
   for (const s of students ?? []) if (s.class_id) counts.set(s.class_id, (counts.get(s.class_id) ?? 0) + 1);

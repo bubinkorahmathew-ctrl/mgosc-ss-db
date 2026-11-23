@@ -4,6 +4,7 @@
 --
 -- !! DEVELOPMENT ONLY !!  All seeded users share the password below.
 --    Do NOT run this file on your production project (see README).
+--    Still used as the test fixture of tests/db and tests/tidb (no logins are copied to TiDB).
 --    Dev password:  ChangeMe!2026
 -- =============================================================================
 

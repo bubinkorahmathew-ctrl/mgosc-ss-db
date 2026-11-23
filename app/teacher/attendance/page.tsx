@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { getClassStudents, getTeacherClassContext } from "@/lib/data/teacher-context";
 import { todayISO } from "@/lib/dates";
 import { EmptyState, PageHeader } from "@/components/page-header";
@@ -16,10 +16,10 @@ export default async function AttendancePage({ searchParams }: PageProps<"/teach
   const today = todayISO();
   const date = typeof sp.date === "string" && /^\d{4}-\d{2}-\d{2}$/.test(sp.date) && sp.date <= today ? sp.date : today;
 
-  const supabase = await createClient();
+  const dbc = await createClient();
   const [students, { data: existing }] = await Promise.all([
     getClassStudents(selected.id),
-    supabase.from("attendance").select("student_id, status").eq("class_id", selected.id).eq("date", date),
+    dbc.from("attendance").select("student_id, status").eq("class_id", selected.id).eq("date", date),
   ]);
 
   return (

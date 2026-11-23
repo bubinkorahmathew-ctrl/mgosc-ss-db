@@ -1,19 +1,20 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
-import { assertRole } from "@/lib/auth";
-import { brandingImageSchema, settingsSchema } from "@/lib/validation/academics";
-import { isBrandingUrl } from "@/lib/pdf/images";
+import { createClient } from "@/lib/db/server";
+import { assertSuperAdmin } from "@/lib/auth";
+import { removeSignature } from "@/lib/branding";
+import { getDatabase } from "@/lib/db";
+import { settingsSchema } from "@/lib/validation/academics";
 import { toActionError, type ActionResult } from "@/lib/action-result";
 
 export async function saveSettings(input: unknown): Promise<ActionResult> {
   try {
-    await assertRole("headmaster");
+    await assertSuperAdmin();
     const { certificate_wording, ...data } = settingsSchema.parse(input);
     const wording = Object.fromEntries(Object.entries(certificate_wording).map(([k, v]) => [k, v ?? ""]));
-    const supabase = await createClient();
-    const { error } = await supabase.from("school_settings")
+    const dbc = await createClient();
+    const { error } = await dbc.from("school_settings")
       .update({ ...data, certificate_wording: wording, updated_at: new Date().toISOString() }).eq("id", 1);
     if (error) throw error;
     revalidatePath("/admin/settings");
@@ -23,18 +24,13 @@ export async function saveSettings(input: unknown): Promise<ActionResult> {
   }
 }
 
-/** Store (or clear) the public URL of an image the headmaster uploaded to the branding bucket. */
-export async function saveBrandingImage(input: unknown): Promise<ActionResult> {
+/** Uploads go to app/api/branding/signature. This clears it. */
+export async function removeSignatureImage(): Promise<ActionResult> {
   try {
-    await assertRole("headmaster");
-    const { kind, url } = brandingImageSchema.parse(input);
-    if (url !== null && !isBrandingUrl(url.split("?")[0])) return { ok: false, error: "Invalid image location." };
-    const supabase = await createClient();
-    const { error } = await supabase.from("school_settings")
-      .update(kind === "logo" ? { logo_url: url } : { signature_url: url }).eq("id", 1);
-    if (error) throw error;
+    const user = await assertSuperAdmin();
+    await removeSignature(getDatabase(), user.id);
     revalidatePath("/admin/settings");
-    return { ok: true, message: url ? "Image saved." : "Image removed." };
+    return { ok: true, message: "Signature removed." };
   } catch (e) {
     return toActionError(e);
   }

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getAcademicYears } from "@/lib/data/classes";
 import { getClassExams, getExamResults } from "@/lib/data/results";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { classLabel } from "@/lib/format";
 import { formatDate } from "@/lib/dates";
 import { EmptyState, PageHeader } from "@/components/page-header";
@@ -15,9 +15,9 @@ export default async function ReportCardsPage({ searchParams }: PageProps<"/admi
   const years = await getAcademicYears();
   const year = years.find((y) => y.id === sp.year) ?? years.find((y) => y.is_current) ?? years[0];
 
-  const supabase = await createClient();
+  const dbc = await createClient();
   const { data: classRows } = year
-    ? await supabase.from("classes").select("id, name, section").eq("academic_year_id", year.id)
+    ? await dbc.from("classes").select("id, name, section").eq("academic_year_id", year.id)
     : { data: [] };
   const classes = (classRows ?? []).map((c) => ({ value: c.id, label: classLabel(c) }))
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));

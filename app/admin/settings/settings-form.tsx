@@ -4,10 +4,9 @@ import { useRef, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { Loader2, Save, Trash2, Upload } from "lucide-react";
-import { saveBrandingImage, saveSettings } from "@/actions/settings";
-import { createClient } from "@/lib/supabase/client";
+import { removeSignatureImage, saveSettings } from "@/actions/settings";
 import { CERT_LABELS, CERTIFICATE_TYPES, PLACEHOLDER_HELP, PLACEHOLDERS } from "@/lib/certificates";
-import type { CertificateType } from "@/lib/supabase/types";
+import type { CertificateType } from "@/lib/db/types";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -80,7 +79,7 @@ export function SettingsForm({ initial }: { initial: Initial }) {
 
 const MAX_BYTES = 1_000_000;
 
-/** Uploads straight to the public "branding" bucket (storage RLS: headmaster only), then saves the URL. */
+/** Super admin only (checked again on the server). */
 export function SignatureUpload({ url }: { url: string | null }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
@@ -89,19 +88,14 @@ export function SignatureUpload({ url }: { url: string | null }) {
   const upload = (file: File) => start(async () => {
     if (!["image/png", "image/jpeg"].includes(file.type)) { toast.error("Please choose a PNG or JPG image."); return; }
     if (file.size > MAX_BYTES) { toast.error("The image must be smaller than 1 MB."); return; }
-    const supabase = createClient();
-    const path = `signature.${file.type === "image/png" ? "png" : "jpg"}`;
-    const { error } = await supabase.storage.from("branding").upload(path, file, { upsert: true, contentType: file.type, cacheControl: "60" });
-    if (error) { toast.error("Upload failed. Please try again."); return; }
-    const publicUrl = `${supabase.storage.from("branding").getPublicUrl(path).data.publicUrl}?v=${Date.now()}`;
-    const res = await saveBrandingImage({ kind: "signature", url: publicUrl });
-    if (!res.ok) { toast.error(res.error); return; }
+    const res = await fetch("/api/branding/signature", { method: "POST", body: file }).catch(() => null);
+    if (!res?.ok) { toast.error(res ? await res.text() : "Upload failed. Please try again."); return; }
     toast.success("Signature saved.");
     router.refresh();
   });
 
   const remove = () => start(async () => {
-    const res = await saveBrandingImage({ kind: "signature", url: null });
+    const res = await removeSignatureImage();
     if (!res.ok) { toast.error(res.error); return; }
     toast.success("Signature removed.");
     router.refresh();
@@ -115,7 +109,7 @@ export function SignatureUpload({ url }: { url: string | null }) {
       </CardHeader>
       <CardContent className="flex flex-wrap items-center gap-4">
         <div className="flex h-24 w-64 items-center justify-center rounded-lg border bg-white">
-          {/* eslint-disable-next-line @next/next/no-img-element -- user-uploaded image from storage */}
+          {/* eslint-disable-next-line @next/next/no-img-element -- user-uploaded image, staff-only route */}
           {url ? <img src={url} alt="Current signature" className="max-h-20 max-w-60 object-contain" /> : <span className="text-sm text-muted-foreground">No signature yet</span>}
         </div>
         <input ref={input} type="file" accept="image/png,image/jpeg" className="hidden"

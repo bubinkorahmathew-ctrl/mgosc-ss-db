@@ -1,62 +1,34 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { createServerClient } from "@supabase/ssr";
+import { SESSION_COOKIE } from "@/lib/authn/cookie";
+import { resolveSession } from "@/lib/authn/session";
+import { getDatabase } from "@/lib/db";
 
 /**
- * Refreshes the Supabase session cookie and guards /admin and /teacher by role.
- * Role + active flag are read from public.profiles (the same source RLS uses), so
- * proxy, layouts and the database always agree. Layouts and server actions re-check.
+ * Guards /admin and /teacher by role. This reads the session from the database rather than only
+ * checking that a cookie exists: most pages rely on it, and layouts don't re-run on navigation.
+ * Server actions and the data layer check again.
  */
 export async function proxy(request: NextRequest) {
-  let response = NextResponse.next({ request });
-
-  const supabase = createServerClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY!,
-    {
-      cookies: {
-        getAll() {
-          return request.cookies.getAll();
-        },
-        setAll(cookiesToSet, headers) {
-          cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value));
-          response = NextResponse.next({ request });
-          cookiesToSet.forEach(({ name, value, options }) => response.cookies.set(name, value, options));
-          Object.entries(headers ?? {}).forEach(([k, v]) => response.headers.set(k, v));
-        },
-      },
-    },
-  );
-
-  // getClaims() verifies the JWT; never authorize from getSession().
-  const { data } = await supabase.auth.getClaims();
-  const userId = data?.claims?.sub;
-
-  let role: "headmaster" | "teacher" | null = null;
-  if (userId) {
-    const { data: profile } = await supabase
-      .from("profiles").select("role, active").eq("id", userId).maybeSingle();
-    if (profile?.active) role = profile.role as "headmaster" | "teacher";
-  }
-
   const path = request.nextUrl.pathname;
+  const needs = path.startsWith("/admin") ? "headmaster" : path.startsWith("/teacher") ? "teacher" : null;
+
   const redirectTo = (to: string, search = "") => {
     const url = request.nextUrl.clone();
     url.pathname = to;
     url.search = search;
-    const res = NextResponse.redirect(url);
-    response.cookies.getAll().forEach((c) => res.cookies.set(c));
-    return res;
+    return NextResponse.redirect(url);
   };
-  const home = (r: "headmaster" | "teacher") => (r === "headmaster" ? "/admin" : "/teacher");
 
-  const needs = path.startsWith("/admin") ? "headmaster" : path.startsWith("/teacher") ? "teacher" : null;
+  const token = request.cookies.get(SESSION_COOKIE)?.value;
+  const user = token ? await resolveSession(getDatabase(), token) : null;
+  const role = user?.profile.role;
+
   if (needs) {
-    if (!userId) return redirectTo("/login", `?next=${encodeURIComponent(path)}`);
-    if (!role) return redirectTo("/login", "?reason=inactive");
-    if (role !== needs) return redirectTo(home(role));
+    if (!role) return redirectTo("/login", `?next=${encodeURIComponent(path)}`);
+    if (role !== needs) return redirectTo(role === "headmaster" ? "/admin" : "/teacher");
   }
-  if (path === "/login" && role) return redirectTo(home(role));
-  return response;
+  if (path === "/login" && role) return redirectTo(role === "headmaster" ? "/admin" : "/teacher");
+  return NextResponse.next();
 }
 
 export const config = {

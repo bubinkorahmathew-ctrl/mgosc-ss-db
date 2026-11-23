@@ -8,8 +8,9 @@ import { ShellSkeleton } from "@/components/layout/shell-skeleton";
 async function AdminShell({ children }: { children: React.ReactNode }) {
   const user = await requireRole("headmaster");
   return (
-    <AppShell appName={APP_NAME} nav={ADMIN_NAV} root="/admin"
-      userName={user.profile.full_name} roleLabel="Headmaster">
+    <AppShell appName={APP_NAME} root="/admin"
+      nav={user.superAdmin ? ADMIN_NAV : ADMIN_NAV.filter((item) => !item.superOnly)}
+      userName={user.profile.full_name} roleLabel={user.superAdmin ? "Super admin" : "Admin"}>
       {children}
     </AppShell>
   );

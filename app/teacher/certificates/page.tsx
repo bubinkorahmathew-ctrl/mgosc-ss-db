@@ -1,9 +1,5 @@
 import type { Metadata } from "next";
-import Link from "next/link";
-import { Award } from "lucide-react";
 import { getTeacherClassContext } from "@/lib/data/teacher-context";
-import { withClass } from "@/lib/format";
-import { Button } from "@/components/ui/button";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { CertificateList } from "@/components/certificates/certificate-list";
 
@@ -15,8 +11,7 @@ export default async function TeacherCertificatesPage({ searchParams }: PageProp
   if (!selected) return <EmptyState title="No class is assigned to you yet." />;
   return (
     <>
-      <PageHeader title="Certificates" description="Certificates for students of your classes. Ask the headmaster if one needs to be revoked."
-        actions={<Button render={<Link href={withClass("/teacher/certificates/new", selected.id)} />} nativeButton={false}><Award /> Issue certificates</Button>} />
+      <PageHeader title="Certificates" description="Certificates for students of your classes. Only admins issue or revoke them." />
       <CertificateList sp={sp} classes={classes.map((c) => ({ id: c.id, label: c.label }))} canRevoke={false} base="/teacher/certificates" />
     </>
   );

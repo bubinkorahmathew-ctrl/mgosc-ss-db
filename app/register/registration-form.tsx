@@ -43,7 +43,7 @@ export function RegistrationForm() {
       <CardContent>
         <form onSubmit={onSubmit} noValidate className="space-y-6">
           <PersonalFieldsFieldset register={form.register} errors={form.formState.errors}
-            serverErrors={serverErrors} audience="parent" />
+            serverErrors={serverErrors} />
 
           {/* Honeypot: hidden from people and screen readers; bots tend to fill it. */}
           <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">

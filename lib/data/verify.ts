@@ -1,5 +1,5 @@
 import "server-only";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 
 export const CERT_NO_PATTERN = /^CERT-\d{4}-\d{4,6}$/;
 
@@ -10,8 +10,8 @@ export function normaliseCertNo(raw: string | undefined | null): string | null {
 
 /** Calls the public verify_certificate() function: only validity, type, date and name are exposed. */
 export async function verifyCertificate(no: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase.rpc("verify_certificate", { p_no: no });
+  const dbc = await createClient();
+  const { data, error } = await dbc.call((db) => db.verifyCertificate(no));
   if (error) throw error;
-  return data?.[0] ?? null;
+  return data;
 }

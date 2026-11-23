@@ -1,6 +1,6 @@
 import "server-only";
-import { createClient } from "@/lib/supabase/server";
-import type { SchoolSettingsRow } from "@/lib/supabase/types";
+import { createClient } from "@/lib/db/server";
+import type { SchoolSettingsRow } from "@/lib/db/types";
 
 const FALLBACK: SchoolSettingsRow = {
   id: 1, school_name: "Sunday School", address: null, logo_url: null, headmaster_name: null,
@@ -9,7 +9,7 @@ const FALLBACK: SchoolSettingsRow = {
 
 /** The single school_settings row (readable by any signed-in user). */
 export async function getSettings(): Promise<SchoolSettingsRow> {
-  const supabase = await createClient();
-  const { data } = await supabase.from("school_settings").select("*").eq("id", 1).maybeSingle();
+  const dbc = await createClient();
+  const { data } = await dbc.from("school_settings").select("*").eq("id", 1).maybeSingle();
   return data ?? FALLBACK;
 }

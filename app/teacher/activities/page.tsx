@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { getClassStudents, getTeacherClassContext } from "@/lib/data/teacher-context";
 import { formatDate, todayISO } from "@/lib/dates";
 import { ACTIVITY_LABELS } from "@/lib/validation/teacher";
@@ -17,12 +17,12 @@ export default async function ActivitiesPage({ searchParams }: PageProps<"/teach
   const students = await getClassStudents(selected.id);
   const studentId = typeof sp.student === "string" && students.some((s) => s.id === sp.student) ? sp.student : undefined;
 
-  const supabase = await createClient();
-  let q = supabase.from("activities")
+  const dbc = await createClient();
+  let q = dbc.from("activities")
     .select("id, type, title, activity_date, score, notes, student_id, students(full_name)")
     .eq("class_id", selected.id)
     .order("activity_date", { ascending: false }).order("created_at", { ascending: false }).limit(200);
-  if (studentId) q = q.or(`student_id.eq.${studentId},student_id.is.null`);
+  if (studentId) q = q.or([["student_id", "eq", studentId], ["student_id", "is", null]]);
   const { data: activities } = await q;
 
   const studentOptions = students.map((s) => ({ id: s.id, label: s.full_name }));

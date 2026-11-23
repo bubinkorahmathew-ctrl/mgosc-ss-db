@@ -1,6 +1,6 @@
 import "server-only";
 import { cookies } from "next/headers";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { classLabel } from "@/lib/format";
 
 export type TeacherClass = { id: string; label: string; yearName: string; isCurrent: boolean };
@@ -10,8 +10,8 @@ export type TeacherClass = { id: string; label: string; yearName: string; isCurr
  * and the selected one: ?class= if it is one of theirs, else the first.
  */
 export async function getTeacherClassContext(requested?: string | string[]) {
-  const supabase = await createClient();
-  const { data } = await supabase
+  const dbc = await createClient();
+  const { data } = await dbc
     .from("classes")
     .select("id, name, section, academic_years!inner(name, is_current, start_date)")
     .order("name");
@@ -33,8 +33,8 @@ export async function getTeacherClassContext(requested?: string | string[]) {
 
 /** Active students of a class, ordered by name (RLS applies). */
 export async function getClassStudents(classId: string) {
-  const supabase = await createClient();
-  const { data, error } = await supabase
+  const dbc = await createClient();
+  const { data, error } = await dbc
     .from("students").select("id, admission_no, full_name, full_name_ml")
     .eq("class_id", classId).eq("status", "active").order("full_name");
   if (error) throw error;

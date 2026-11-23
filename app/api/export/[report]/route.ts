@@ -6,7 +6,7 @@ import { uuid } from "@/lib/validation/common";
 import { parseRange, parseStudentReport } from "@/lib/validation/reports";
 import { activityReport, attendanceReport, defaultRange, studentReport } from "@/lib/data/reports";
 import { getExamResults } from "@/lib/data/results";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { classLabel } from "@/lib/format";
 import { buildXlsx, xlsxResponse, type XlsxSheet } from "@/lib/xlsx";
 import { ACTIVITY_LABELS } from "@/lib/validation/teacher";
@@ -30,10 +30,11 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/export/[repo
         name: "Students", title: `Students · age as of ${formatDate(f.as_of)} · ${rows.length} students`,
         columns: [
           { header: "Admission no", key: "admission_no", width: 15 }, { header: "Name", key: "full_name", width: 26 },
-          { header: "Name (Malayalam)", key: "full_name_ml", width: 26 }, { header: "Class", key: "class", width: 14 },
+          { header: "Class", key: "class", width: 14 },
           { header: "Date of birth", key: "dob_f", width: 13 }, { header: "Age", key: "age", width: 6 },
           { header: "Gender", key: "gender", width: 9 }, { header: "School class", key: "school_class", width: 12 },
-          { header: "School", key: "school_name", width: 24 }, { header: "Father", key: "father_name", width: 20 },
+          { header: "School", key: "school_name", width: 24 }, { header: "Prayer group", key: "prayer_group", width: 22 },
+          { header: "Father", key: "father_name", width: 20 },
           { header: "Mother", key: "mother_name", width: 20 }, { header: "Phone", key: "guardian_phone", width: 14 },
           { header: "Address", key: "address", width: 30 }, { header: "Baptised", key: "baptised_f", width: 9 },
           { header: "Status", key: "status", width: 10 },
@@ -106,7 +107,7 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/export/[repo
 }
 
 async function classLabelFor(classId: string) {
-  const supabase = await createClient();
-  const { data } = await supabase.from("classes").select("name, section").eq("id", classId).maybeSingle();
+  const dbc = await createClient();
+  const { data } = await dbc.from("classes").select("name, section").eq("id", classId).maybeSingle();
   return data ? classLabel(data) : "Class";
 }

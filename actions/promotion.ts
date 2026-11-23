@@ -1,7 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { assertRole } from "@/lib/auth";
 import { promotionSchema } from "@/lib/validation/academics";
 import { toActionError, type ActionResult } from "@/lib/action-result";
@@ -15,15 +15,15 @@ export async function promoteStudents(input: unknown): Promise<ActionResult<{ mo
   try {
     await assertRole("headmaster");
     const { from_class_id, target, student_ids } = promotionSchema.parse(input);
-    const supabase = await createClient();
+    const dbc = await createClient();
 
     if (target !== "passed_out") {
-      const { data: cls } = await supabase.from("classes").select("id").eq("id", target).maybeSingle();
+      const { data: cls } = await dbc.from("classes").select("id").eq("id", target).maybeSingle();
       if (!cls) return { ok: false, error: "Target class not found." };
     }
 
     // only active students that are still in the source class are touched
-    const base = supabase.from("students")
+    const base = dbc.from("students")
       .update(target === "passed_out" ? { status: "passed_out" as const } : { class_id: target });
     const { data, error } = await base.eq("class_id", from_class_id).eq("status", "active").in("id", student_ids).select("id");
     if (error) throw error;

@@ -20,11 +20,11 @@ export function StudentProfileView({ profile }: { profile: StudentProfile }) {
   const details: [string, React.ReactNode][] = [
     ["Admission no", <span key="a" className="font-mono">{s.admission_no}</span>],
     ["Sunday School class", s.classes ? `${classLabel(s.classes)} (${s.classes.academic_years?.name ?? ""})` : "Not assigned"],
-    ["Name (Malayalam)", s.full_name_ml || "-"],
     ["Date of birth", `${formatDate(s.dob)} (age ${ageOn(s.dob)})`],
     ["Gender", genderLabel(s.gender)],
     ["School class", s.school_class],
     ["School name", s.school_name || "-"],
+    ["Prayer group", s.prayer_group || "-"],
     ["Father", s.father_name || "-"],
     ["Mother", s.mother_name || "-"],
     ["Guardian phone", <a key="p" href={`tel:${s.guardian_phone}`} className="text-primary underline">{s.guardian_phone}</a>],

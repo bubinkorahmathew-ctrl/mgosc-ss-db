@@ -9,7 +9,7 @@ import { issueCertificates } from "@/actions/certificates";
 import {
   CERT_LABELS, CERTIFICATE_TYPES, DEFAULT_TITLES, PLACEHOLDER_HELP, PLACEHOLDERS, fillTemplate,
 } from "@/lib/certificates";
-import type { CertificateType } from "@/lib/supabase/types";
+import type { CertificateType } from "@/lib/db/types";
 import { todayISO } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

@@ -26,6 +26,11 @@ export const createTeacherSchema = z.object({
 });
 export type CreateTeacherInput = z.input<typeof createTeacherSchema>;
 
+export const createAdminSchema = z.object({
+  full_name: requiredText("Name"),
+  email: z.email("Enter a valid email address.").trim().toLowerCase(),
+});
+
 export const updateTeacherSchema = z.object({
   id: uuid,
   full_name: requiredText("Name"),

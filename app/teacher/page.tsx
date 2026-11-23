@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { CalendarCheck, PencilLine, Sparkles, Users } from "lucide-react";
 import { requireRole } from "@/lib/auth";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { getTeacherClassContext } from "@/lib/data/teacher-context";
 import { formatDate, todayISO } from "@/lib/dates";
 import { withClass } from "@/lib/format";
@@ -26,13 +26,13 @@ export default async function TeacherDashboard({ searchParams }: PageProps<"/tea
     );
   }
 
-  const supabase = await createClient();
+  const dbc = await createClient();
   const today = todayISO();
   const [{ data: students }, { data: att }, { count: activities }, { count: exams }] = await Promise.all([
-    supabase.from("students").select("gender").eq("class_id", selected.id).eq("status", "active"),
-    supabase.from("attendance").select("status").eq("class_id", selected.id).eq("date", today),
-    supabase.from("activities").select("id", { count: "exact", head: true }).eq("class_id", selected.id),
-    supabase.from("exams").select("id", { count: "exact", head: true }).eq("class_id", selected.id),
+    dbc.from("students").select("gender").eq("class_id", selected.id).eq("status", "active"),
+    dbc.from("attendance").select("status").eq("class_id", selected.id).eq("date", today),
+    dbc.from("activities").select("id", { count: "exact", head: true }).eq("class_id", selected.id),
+    dbc.from("exams").select("id", { count: "exact", head: true }).eq("class_id", selected.id),
   ]);
   const boys = (students ?? []).filter((s) => s.gender === "male").length;
   const girls = (students ?? []).length - boys;

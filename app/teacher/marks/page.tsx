@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { getClassStudents, getTeacherClassContext } from "@/lib/data/teacher-context";
 import { formatDate } from "@/lib/dates";
 import { EmptyState, PageHeader } from "@/components/page-header";
@@ -14,11 +14,11 @@ export default async function MarksPage({ searchParams }: PageProps<"/teacher/ma
   const { classes, selected } = await getTeacherClassContext(sp.class);
   if (!selected) return <EmptyState title="No class is assigned to you yet." />;
 
-  const supabase = await createClient();
+  const dbc = await createClient();
   const [{ data: exams }, { data: subjects }] = await Promise.all([
-    supabase.from("exams").select("id, name, exam_date").eq("class_id", selected.id)
+    dbc.from("exams").select("id, name, exam_date").eq("class_id", selected.id)
       .order("exam_date", { ascending: false, nullsFirst: false }),
-    supabase.from("subjects").select("id, name, max_marks, sort_order").order("sort_order").order("name"),
+    dbc.from("subjects").select("id, name, max_marks, sort_order").order("sort_order").order("name"),
   ]);
   const exam = (exams ?? []).find((e) => e.id === sp.exam) ?? (exams ?? [])[0];
 
@@ -30,7 +30,7 @@ export default async function MarksPage({ searchParams }: PageProps<"/teacher/ma
   } else {
     const [students, { data: marks }] = await Promise.all([
       getClassStudents(selected.id),
-      supabase.from("marks").select("student_id, subject_id, marks_obtained").eq("exam_id", exam!.id),
+      dbc.from("marks").select("student_id, subject_id, marks_obtained").eq("exam_id", exam!.id),
     ]);
     const initial: Record<string, Record<string, number>> = {};
     for (const m of marks ?? []) (initial[m.student_id] ??= {})[m.subject_id] = Number(m.marks_obtained);

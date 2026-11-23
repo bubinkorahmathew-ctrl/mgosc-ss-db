@@ -1,4 +1,4 @@
-﻿import path from "node:path";
+import path from "node:path";
 import { defineConfig } from "vitest/config";
 
 export default defineConfig({
@@ -11,6 +11,7 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["tests/**/*.test.ts"],
+    exclude: ["**/node_modules/**", "tests/tidb/**"], // npm run test:tidb
     testTimeout: 60_000,
     hookTimeout: 120_000,
   },

@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { getClassOptions } from "@/lib/data/classes";
 import { formatDate, ageOn } from "@/lib/dates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,21 +15,21 @@ export const metadata: Metadata = { title: "Registration" };
 export default async function RegistrationDetail({ params }: PageProps<"/admin/registrations/[id]">) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const supabase = await createClient();
+  const dbc = await createClient();
   const [{ data: r }, classes] = await Promise.all([
-    supabase.from("registrations").select("*, reviewer:profiles!registrations_reviewed_by_fkey(full_name)")
+    dbc.from("registrations").select("*, reviewer:profiles!registrations_reviewed_by_fkey(full_name)")
       .eq("id", id).maybeSingle(),
     getClassOptions({ currentOnly: true }),
   ]);
   if (!r) notFound();
 
   const rows: [string, React.ReactNode][] = [
-    ["Name (English)", r.full_name],
-    ["Name (Malayalam)", r.full_name_ml || "-"],
+    ["Name", r.full_name],
     ["Date of birth", `${formatDate(r.dob)} (age ${ageOn(r.dob)})`],
     ["Gender", genderLabel(r.gender)],
     ["School class", r.school_class],
     ["School name", r.school_name || "-"],
+    ["Prayer group", r.prayer_group || "-"],
     ["Father", r.father_name || "-"],
     ["Mother", r.mother_name || "-"],
     ["Guardian phone", <a key="p" className="text-primary underline" href={`tel:${r.guardian_phone}`}>{r.guardian_phone}</a>],

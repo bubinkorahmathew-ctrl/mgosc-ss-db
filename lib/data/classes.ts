@@ -1,6 +1,6 @@
 import "server-only";
-import { createClient } from "@/lib/supabase/server";
-import type { AcademicYearRow } from "@/lib/supabase/types";
+import { getUserDb } from "@/lib/auth";
+import type { AcademicYearRow } from "@/lib/db/types";
 import { classLabel } from "@/lib/format";
 
 export { classLabel };
@@ -9,26 +9,30 @@ export type ClassOption = {
 };
 
 export async function getAcademicYears(): Promise<AcademicYearRow[]> {
-  const supabase = await createClient();
-  const { data } = await supabase.from("academic_years").select("*").order("start_date", { ascending: false });
-  return data ?? [];
+  const db = await getUserDb();
+  return db.select("academic_years", { order: [{ column: "start_date", ascending: false }] });
 }
 
-/** Classes visible to the caller (RLS), current year first. */
+/** Classes visible to the caller (policies), current year first. */
 export async function getClassOptions(opts: { currentOnly?: boolean } = {}): Promise<ClassOption[]> {
-  const supabase = await createClient();
-  const { data } = await supabase
-    .from("classes")
-    .select("id, name, section, academic_year_id, academic_years!inner(name, is_current, start_date)")
-    .order("name");
-  const rows = (data ?? []).map((c) => ({
-    id: c.id,
-    label: classLabel(c),
-    academic_year_id: c.academic_year_id,
-    yearName: c.academic_years.name,
-    isCurrent: c.academic_years.is_current,
-    start: c.academic_years.start_date,
-  }));
+  const db = await getUserDb();
+  const [classes, years] = await Promise.all([
+    db.select("classes", { order: [{ column: "name" }] }),
+    db.select("academic_years"),
+  ]);
+  const yearById = new Map(years.map((y) => [y.id, y]));
+  const rows = classes.flatMap((c) => {
+    const year = yearById.get(c.academic_year_id);
+    if (!year) return []; // inner join
+    return [{
+      id: c.id,
+      label: classLabel(c),
+      academic_year_id: c.academic_year_id,
+      yearName: year.name,
+      isCurrent: year.is_current,
+      start: year.start_date,
+    }];
+  });
   const filtered = opts.currentOnly ? rows.filter((r) => r.isCurrent) : rows;
   filtered.sort((a, b) => Number(b.isCurrent) - Number(a.isCurrent) || b.start.localeCompare(a.start)
     || a.label.localeCompare(b.label, undefined, { numeric: true }));

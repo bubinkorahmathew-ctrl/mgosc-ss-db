@@ -3,7 +3,7 @@ export type NavIcon =
   | "reports" | "certificates" | "promotion" | "settings" | "attendance" | "marks"
   | "activities" | "account";
 
-export type NavItem = { href: string; label: string; icon: NavIcon; primary?: boolean };
+export type NavItem = { href: string; label: string; icon: NavIcon; primary?: boolean; superOnly?: boolean };
 
 export const ADMIN_NAV: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: "dashboard", primary: true },
@@ -16,7 +16,9 @@ export const ADMIN_NAV: NavItem[] = [
   { href: "/admin/reports", label: "Reports", icon: "reports", primary: true },
   { href: "/admin/certificates", label: "Certificates", icon: "certificates" },
   { href: "/admin/promotion", label: "Promotion", icon: "promotion" },
-  { href: "/admin/settings", label: "Settings", icon: "settings" },
+  { href: "/admin/admins", label: "Admins", icon: "teachers", superOnly: true },
+  { href: "/admin/settings", label: "Settings", icon: "settings", superOnly: true },
+  { href: "/admin/account", label: "Account", icon: "account" },
 ];
 
 export const TEACHER_NAV: NavItem[] = [

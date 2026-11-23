@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { formatDate, todayISO } from "@/lib/dates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/page-header";
@@ -8,16 +8,16 @@ import { EmptyState, PageHeader } from "@/components/page-header";
 export const metadata: Metadata = { title: "Dashboard" };
 
 export default async function AdminDashboard() {
-  const supabase = await createClient();
+  const dbc = await createClient();
   const today = todayISO();
 
   const [{ data: classes }, { data: students }, { count: pending }, { data: attendance }] = await Promise.all([
-    supabase.from("classes")
+    dbc.from("classes")
       .select("id, name, section, academic_years!inner(is_current)")
       .eq("academic_years.is_current", true).order("name"),
-    supabase.from("students").select("class_id").eq("status", "active"),
-    supabase.from("registrations").select("id", { count: "exact", head: true }).eq("status", "pending"),
-    supabase.from("attendance").select("class_id, status").eq("date", today),
+    dbc.from("students").select("class_id").eq("status", "active"),
+    dbc.from("registrations").select("id", { count: "exact", head: true }).eq("status", "pending"),
+    dbc.from("attendance").select("class_id, status").eq("date", today),
   ]);
 
   const perClass = new Map<string, number>();

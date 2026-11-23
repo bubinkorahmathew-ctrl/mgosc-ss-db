@@ -52,9 +52,3 @@ export const settingsSchema = z.object({
   }),
 });
 export type SettingsInput = z.input<typeof settingsSchema>;
-
-/** Only images inside our own public "branding" bucket can be saved as logo/signature. */
-export const brandingImageSchema = z.object({
-  kind: z.enum(["logo", "signature"]),
-  url: z.string().nullable(),
-});

@@ -1,7 +1,7 @@
 import type { NextRequest } from "next/server";
 import { apiUser, getBranding, pdfResponse, textResponse } from "@/lib/api";
 import { certificateIdsParam } from "@/lib/validation/certificates";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/db/server";
 import { renderCertificates } from "@/lib/pdf/certificate";
 
 /** GET /api/pdf/certificates?ids=<id>,<id>...[&download=1] — always rendered from the stored snapshot. */
@@ -12,8 +12,8 @@ export async function GET(req: NextRequest) {
   const ids = certificateIdsParam.safeParse(req.nextUrl.searchParams.get("ids") ?? "");
   if (!ids.success) return textResponse(400, "Invalid link.");
 
-  const supabase = await createClient();
-  const { data, error } = await supabase.from("certificates")
+  const dbc = await createClient();
+  const { data, error } = await dbc.from("certificates")
     .select("id, certificate_no, title, body_text, student_name, student_name_ml, class_teacher_name, issued_on, revoked")
     .in("id", ids.data);
   if (error) return textResponse(500, "Could not load certificates.");

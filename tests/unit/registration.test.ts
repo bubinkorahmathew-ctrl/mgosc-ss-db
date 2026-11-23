@@ -6,7 +6,7 @@ import { generateTempPassword } from "@/lib/password";
 
 const valid = {
   full_name: "  Christy   Paul ",
-  full_name_ml: "ക്രിസ്റ്റി പോൾ",
+  prayer_group: "  St. Thomas   Prayer Group ",
   dob: "2020-04-04",
   gender: "female",
   guardian_phone: "94470 00011",
@@ -22,6 +22,7 @@ describe("registration validation", () => {
     expect(r.full_name).toBe("Christy Paul");
     expect(r.guardian_phone).toBe("9447000011");
     expect(r.father_name).toBeNull();
+    expect(r.prayer_group).toBe("St. Thomas Prayer Group");
     expect(r.baptised).toBe(true);
   });
 
@@ -35,12 +36,17 @@ describe("registration validation", () => {
   it("normalises Malayalam to NFC", () => {
     // ൊ (U+0D4A) written decomposed as െ + ാ (U+0D46 U+0D3E)
     const decomposed = "ജൊസ";
-    const r = registrationSchema.parse({ ...valid, full_name_ml: decomposed });
-    expect(r.full_name_ml).toBe(decomposed.normalize("NFC"));
+    const r = registrationSchema.parse({ ...valid, prayer_group: decomposed });
+    expect(r.prayer_group).toBe(decomposed.normalize("NFC"));
   });
 
-  it("rejects Latin text in the Malayalam name field", () => {
-    expect(registrationSchema.safeParse({ ...valid, full_name_ml: "Christy" }).success).toBe(false);
+  it("no longer accepts a Malayalam name", () => {
+    expect(registrationSchema.parse({ ...valid, full_name_ml: "ക്രിസ്റ്റി" })).not.toHaveProperty("full_name_ml");
+  });
+
+  it("prayer group is optional", () => {
+    expect(registrationSchema.parse({ ...valid, prayer_group: "" }).prayer_group).toBeNull();
+    expect(registrationSchema.parse({ ...valid, prayer_group: undefined }).prayer_group).toBeNull();
   });
 
   it.each([
@@ -49,6 +55,8 @@ describe("registration validation", () => {
     ["bad phone", { guardian_phone: "12345" }],
     ["unknown school class", { school_class: "Grade 13" }],
     ["html in name", { full_name: "<script>x</script>" }],
+    ["html in prayer group", { prayer_group: "<b>x</b>" }],
+    ["over-long prayer group", { prayer_group: "x".repeat(121) }],
   ])("rejects %s", (_label, patch) => {
     expect(registrationSchema.safeParse({ ...valid, ...patch }).success).toBe(false);
   });

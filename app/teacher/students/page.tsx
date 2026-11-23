@@ -1,4 +1,7 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { UserPlus } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { listStudents } from "@/lib/data/students";
 import { getTeacherClassContext } from "@/lib/data/teacher-context";
 import { studentFiltersSchema } from "@/lib/validation/student";
@@ -20,7 +23,12 @@ export default async function TeacherStudentsPage({ searchParams }: PageProps<"/
 
   return (
     <>
-      <PageHeader title="Students" description={selected.label} />
+      <PageHeader title="Students" description={selected.label}
+        actions={selected.isCurrent && (
+          <Button nativeButton={false} render={<Link href={`/teacher/students/new?class=${selected.id}`} />}>
+            <UserPlus /> Add student
+          </Button>
+        )} />
       <ClassSwitcher classes={classes} selectedId={selected.id} />
       <StudentFilters classes={[]} showClassFilter={false} />
       <StudentsTable rows={result.rows} basePath="/teacher/students" empty="No students in this class match." />
