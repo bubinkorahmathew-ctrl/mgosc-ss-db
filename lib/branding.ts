@@ -6,6 +6,13 @@ import { lockActor } from "@/lib/db/policies";
 export const SIGNATURE_PATH = "/api/branding/signature";
 export const MAX_SIGNATURE_BYTES = 1_000_000;
 
+/** Whose signature: the Headmaster's is the original one (school_settings.signature_url). */
+export type Signer = "headmaster" | "vicar";
+const KIND: Record<Signer, "signature" | "vicar_signature"> = { headmaster: "signature", vicar: "vicar_signature" };
+const COLUMN: Record<Signer, "signature_url" | "vicar_signature_url"> = { headmaster: "signature_url", vicar: "vicar_signature_url" };
+
+export const parseSigner = (v: string | null | undefined): Signer => (v === "vicar" ? "vicar" : "headmaster");
+
 type Mime = "image/png" | "image/jpeg";
 
 /** By content, not by the name or type the browser claims. */
@@ -19,32 +26,32 @@ async function requireSuper(tx: Executor, userId: string) {
   if (!(await lockActor(tx, userId)).superAdmin) throw notAllowed();
 }
 
-export async function saveSignature(database: Database, userId: string, data: Buffer): Promise<string> {
+export async function saveSignature(database: Database, userId: string, data: Buffer, signer: Signer = "headmaster"): Promise<string> {
   const mime = sniffImage(data);
   if (!mime) throw violates("the signature must be a PNG or JPG image");
   if (data.length > MAX_SIGNATURE_BYTES) throw violates("the signature must be smaller than 1 MB");
   const now = new Date();
-  const url = `${SIGNATURE_PATH}?v=${now.getTime()}`;
+  const url = `${SIGNATURE_PATH}?${signer === "vicar" ? "who=vicar&" : ""}v=${now.getTime()}`;
   await database.transaction(async (tx) => {
     await requireSuper(tx, userId);
     await tx.query(
-      "insert into branding_images (kind, mime, data, updated_at) values ('signature', ?, ?, ?) on duplicate key update mime = values(mime), data = values(data), updated_at = values(updated_at)",
-      [mime, data, now]);
-    await tx.query("update school_settings set signature_url = ?, updated_at = ? where id = 1", [url, now]);
+      "insert into branding_images (kind, mime, data, updated_at) values (?, ?, ?, ?) on duplicate key update mime = values(mime), data = values(data), updated_at = values(updated_at)",
+      [KIND[signer], mime, data, now]);
+    await tx.query(`update school_settings set ${COLUMN[signer]} = ?, updated_at = ? where id = 1`, [url, now]);
   });
   return url;
 }
 
-export async function removeSignature(database: Database, userId: string): Promise<void> {
+export async function removeSignature(database: Database, userId: string, signer: Signer = "headmaster"): Promise<void> {
   await database.transaction(async (tx) => {
     await requireSuper(tx, userId);
-    await tx.query("delete from branding_images where kind = 'signature'");
-    await tx.query("update school_settings set signature_url = null, updated_at = ? where id = 1", [new Date()]);
+    await tx.query("delete from branding_images where kind = ?", [KIND[signer]]);
+    await tx.query(`update school_settings set ${COLUMN[signer]} = null, updated_at = ? where id = 1`, [new Date()]);
   });
 }
 
 /** Callers must have checked that a staff member is signed in. */
-export async function readSignature(database: Executor): Promise<{ mime: Mime; data: Buffer } | null> {
-  const [row] = await database.query<{ mime: Mime; data: Buffer }>("select mime, data from branding_images where kind = 'signature'");
+export async function readSignature(database: Executor, signer: Signer = "headmaster"): Promise<{ mime: Mime; data: Buffer } | null> {
+  const [row] = await database.query<{ mime: Mime; data: Buffer }>("select mime, data from branding_images where kind = ?", [KIND[signer]]);
   return row ?? null;
 }

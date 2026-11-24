@@ -69,7 +69,9 @@ export type CertificateRow = {
 };
 export type SchoolSettingsRow = {
   id: number; school_name: string; address: string | null; logo_url: string | null;
-  headmaster_name: string | null; signature_url: string | null;
+  headmaster_name: string | null; vicar_name: string | null;
+  /** the Headmaster's signature */
+  signature_url: string | null; vicar_signature_url: string | null;
   certificate_wording: Partial<Record<CertificateType, string>>;
   /** read it with readNavStyle() */
   nav_icons: unknown; updated_at: string;

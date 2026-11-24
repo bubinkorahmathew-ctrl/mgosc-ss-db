@@ -5,7 +5,7 @@ import { createClient } from "@/lib/db/server";
 import { assertRole, assertSuperAdmin } from "@/lib/auth";
 import { NOT_ASSIGNED_PRAYER_UNIT } from "@/lib/config";
 import { deletePrayerUnitSchema, prayerUnitSchema } from "@/lib/validation/prayer-units";
-import { removeSignature } from "@/lib/branding";
+import { parseSigner, removeSignature } from "@/lib/branding";
 import { getDatabase } from "@/lib/db";
 import { settingsSchema } from "@/lib/validation/academics";
 import { navStyleSchema } from "@/lib/validation/menu-icons";
@@ -88,11 +88,11 @@ export async function deletePrayerUnit(input: unknown): Promise<ActionResult> {
   }
 }
 
-/** Uploads go to app/api/branding/signature. This clears it. */
-export async function removeSignatureImage(): Promise<ActionResult> {
+/** Uploads go to app/api/branding/signature. This clears the Headmaster's or the Vicar's. */
+export async function removeSignatureImage(who?: unknown): Promise<ActionResult> {
   try {
     const user = await assertSuperAdmin();
-    await removeSignature(getDatabase(), user.id);
+    await removeSignature(getDatabase(), user.id, parseSigner(typeof who === "string" ? who : null));
     revalidatePath("/admin/settings");
     return { ok: true, message: "Signature removed." };
   } catch (e) {

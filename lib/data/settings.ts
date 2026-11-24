@@ -5,8 +5,8 @@ import type { NavStyle } from "@/components/layout/nav-config";
 import { readNavStyle } from "@/lib/validation/menu-icons";
 
 const FALLBACK: SchoolSettingsRow = {
-  id: 1, school_name: "Sunday School", address: null, logo_url: null, headmaster_name: null,
-  signature_url: null, certificate_wording: {}, nav_icons: null, updated_at: new Date(0).toISOString(),
+  id: 1, school_name: "Sunday School", address: null, logo_url: null, headmaster_name: null, vicar_name: null,
+  signature_url: null, vicar_signature_url: null, certificate_wording: {}, nav_icons: null, updated_at: new Date(0).toISOString(),
 };
 
 /** The super admin's menu icon choices (safe to apply to any menu). */

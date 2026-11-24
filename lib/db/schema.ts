@@ -82,8 +82,8 @@ export const COLUMNS: { [T in TableName]: { readonly [C in keyof Rows[T]]-?: Kin
     created_at: "time",
   },
   school_settings: {
-    id: "int", school_name: "text", address: "text?", logo_url: "text?", headmaster_name: "text?",
-    signature_url: "text?", certificate_wording: "json", nav_icons: "json?", updated_at: "time",
+    id: "int", school_name: "text", address: "text?", logo_url: "text?", headmaster_name: "text?", vicar_name: "text?",
+    signature_url: "text?", vicar_signature_url: "text?", certificate_wording: "json", nav_icons: "json?", updated_at: "time",
   },
   number_counters: { kind: ["admission", "certificate"], year: "int", last_value: "int" },
   prayer_units: { id: "uuid", name: "text", active: "bool", created_at: "time" },

@@ -7,9 +7,14 @@ const nextConfig: NextConfig = {
   partialPrefetching: false,
   // react-pdf + its (patched) fontkit run in Node route handlers; don't bundle them.
   serverExternalPackages: ["@react-pdf/renderer", "exceljs"],
-  // Ship the PDF fonts and banner with the serverless functions on Vercel.
+  // Ship the PDF fonts and banners with the serverless functions on Vercel: react-pdf reads them
+  // from disk, which file tracing cannot see. The certificate design uses public/fonts/certificate
+  // and public/images/church-header.jpg.
   outputFileTracingIncludes: {
-    "/api/**/*": ["./assets/fonts/**/*", "./assets/brand/**/*"],
+    "/api/**/*": [
+      "./assets/fonts/**/*", "./assets/brand/**/*",
+      "./public/fonts/certificate/**/*", "./public/images/church-header.jpg",
+    ],
   },
   poweredByHeader: false,
   async headers() {

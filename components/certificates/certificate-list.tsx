@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ChevronLeft, ChevronRight, Download, FileStack, Search } from "lucide-react";
+import { ChevronLeft, ChevronRight, Download, ExternalLink, FileStack, Search } from "lucide-react";
 import { createClient } from "@/lib/db/server";
 import { sanitizeSearch } from "@/lib/data/students";
 import { CERT_LABELS, CERTIFICATE_TYPES } from "@/lib/certificates";
@@ -60,10 +60,20 @@ export async function CertificateList({ sp, classes, canRevoke, base }: {
         <>
           <div className="mb-2 flex flex-wrap items-center justify-between gap-2 text-sm">
             <span className="font-medium">{count} certificate{count === 1 ? "" : "s"}</span>
-            <Button variant="outline" size="sm" nativeButton={false}
-              render={<a href={`/api/pdf/certificates?ids=${rows.map((r) => r.id).join(",")}`} target="_blank" rel="noopener" />}>
-              <FileStack /> PDF of this page ({rows.length})
-            </Button>
+            <div className="flex flex-wrap gap-2">
+              {classId && type ? (
+                <Button size="sm" nativeButton={false}
+                  render={<a href={`/api/certificates/bulk?${toQuery({ class: classId, type })}`} target="_blank" rel="noopener" />}>
+                  <FileStack /> Whole class: all valid {CERT_LABELS[type].toLowerCase()} certificates
+                </Button>
+              ) : (
+                <span className="self-center text-xs text-muted-foreground">Choose a class and a type for one PDF of the whole class.</span>
+              )}
+              <Button variant="outline" size="sm" nativeButton={false}
+                render={<a href={`/api/pdf/certificates?ids=${rows.map((r) => r.id).join(",")}`} target="_blank" rel="noopener" />}>
+                <FileStack /> PDF of this page ({rows.length})
+              </Button>
+            </div>
           </div>
           <ul className="divide-y rounded-xl border text-sm">
             {rows.map((c) => (
@@ -76,9 +86,13 @@ export async function CertificateList({ sp, classes, canRevoke, base }: {
                   </p>
                 </div>
                 <div className="flex gap-1">
-                  <Button variant="outline" size="sm" aria-label={`Download ${c.certificate_no}`} nativeButton={false}
-                    render={<a href={`/api/pdf/certificates?ids=${c.id}`} target="_blank" rel="noopener" />}>
-                    <Download /> PDF
+                  <Button variant="outline" size="sm" aria-label={`Open ${c.certificate_no}`} nativeButton={false}
+                    render={<a href={`/api/certificates/${c.certificate_no}/pdf`} target="_blank" rel="noopener" />}>
+                    <ExternalLink /> PDF
+                  </Button>
+                  <Button variant="ghost" size="sm" aria-label={`Download ${c.certificate_no}`} nativeButton={false}
+                    render={<a href={`/api/certificates/${c.certificate_no}/pdf?download=1`} />}>
+                    <Download />
                   </Button>
                   {canRevoke && <RevokeButton id={c.id} no={c.certificate_no} revoked={c.revoked} />}
                 </div>

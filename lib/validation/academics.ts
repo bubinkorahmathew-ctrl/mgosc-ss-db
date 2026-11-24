@@ -42,6 +42,7 @@ export const settingsSchema = z.object({
   school_name: requiredText("School name", 120),
   address: optionalText("Address", 300),
   headmaster_name: optionalText("Headmaster name", 120),
+  vicar_name: optionalText("Vicar name", 120),
   certificate_wording: z.object({
     completion: optionalText("Wording", 1000),
     merit: optionalText("Wording", 1000),

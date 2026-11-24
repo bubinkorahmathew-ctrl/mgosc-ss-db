@@ -1,13 +1,13 @@
 import { revalidatePath } from "next/cache";
 import { textResponse, apiUser } from "@/lib/api";
-import { MAX_SIGNATURE_BYTES, readSignature, saveSignature, sniffImage } from "@/lib/branding";
+import { MAX_SIGNATURE_BYTES, parseSigner, readSignature, saveSignature, sniffImage } from "@/lib/branding";
 import { getDatabase } from "@/lib/db";
 
-/** Signed-in staff only: a signature is worth protecting. */
-export async function GET() {
+/** Signed-in staff only: a signature is worth protecting. ?who=vicar for the Vicar's, else the Headmaster's. */
+export async function GET(request: Request) {
   const user = await apiUser();
   if (user instanceof Response) return user;
-  const image = await readSignature(getDatabase());
+  const image = await readSignature(getDatabase(), parseSigner(new URL(request.url).searchParams.get("who")));
   if (!image) return textResponse(404, "No signature.");
   return new Response(new Uint8Array(image.data), {
     headers: {
@@ -35,7 +35,7 @@ export async function POST(request: Request) {
   if (data.length > MAX_SIGNATURE_BYTES) return textResponse(413, "The image must be smaller than 1 MB.");
   if (!sniffImage(data)) return textResponse(415, "Please choose a PNG or JPG image.");
 
-  await saveSignature(getDatabase(), user.id, data);
+  await saveSignature(getDatabase(), user.id, data, parseSigner(new URL(request.url).searchParams.get("who")));
   revalidatePath("/admin/settings");
   return textResponse(200, "Signature saved.");
 }

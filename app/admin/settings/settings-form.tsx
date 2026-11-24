@@ -14,7 +14,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Field } from "@/components/form/field";
 
 type Initial = {
-  school_name: string; address: string; headmaster_name: string;
+  school_name: string; address: string; headmaster_name: string; vicar_name: string;
   certificate_wording: Partial<Record<CertificateType, string>>;
 };
 
@@ -44,6 +44,9 @@ export function SettingsForm({ initial }: { initial: Initial }) {
           </Field>
           <Field id="st-hm" label="Headmaster name" error={errors?.headmaster_name?.[0]} hint="Printed under the headmaster's signature.">
             <Input id="st-hm" value={v.headmaster_name} onChange={(e) => setV({ ...v, headmaster_name: e.target.value })} />
+          </Field>
+          <Field id="st-vicar" label="Vicar name" error={errors?.vicar_name?.[0]} hint="Printed under the Vicar's signature on certificates.">
+            <Input id="st-vicar" value={v.vicar_name} onChange={(e) => setV({ ...v, vicar_name: e.target.value })} />
           </Field>
           <Field id="st-addr" label="Address" error={errors?.address?.[0]} className="sm:col-span-2">
             <Input id="st-addr" value={v.address} onChange={(e) => setV({ ...v, address: e.target.value })} />
@@ -79,23 +82,24 @@ export function SettingsForm({ initial }: { initial: Initial }) {
 
 const MAX_BYTES = 1_000_000;
 
-/** Super admin only (checked again on the server). */
-export function SignatureUpload({ url }: { url: string | null }) {
+/** Super admin only (checked again on the server). One card per signer. */
+export function SignatureUpload({ url, who = "headmaster" }: { url: string | null; who?: "headmaster" | "vicar" }) {
   const router = useRouter();
   const input = useRef<HTMLInputElement>(null);
   const [pending, start] = useTransition();
+  const endpoint = `/api/branding/signature${who === "vicar" ? "?who=vicar" : ""}`;
 
   const upload = (file: File) => start(async () => {
     if (!["image/png", "image/jpeg"].includes(file.type)) { toast.error("Please choose a PNG or JPG image."); return; }
     if (file.size > MAX_BYTES) { toast.error("The image must be smaller than 1 MB."); return; }
-    const res = await fetch("/api/branding/signature", { method: "POST", body: file }).catch(() => null);
+    const res = await fetch(endpoint, { method: "POST", body: file }).catch(() => null);
     if (!res?.ok) { toast.error(res ? await res.text() : "Upload failed. Please try again."); return; }
     toast.success("Signature saved.");
     router.refresh();
   });
 
   const remove = () => start(async () => {
-    const res = await removeSignatureImage();
+    const res = await removeSignatureImage(who);
     if (!res.ok) { toast.error(res.error); return; }
     toast.success("Signature removed.");
     router.refresh();
@@ -104,8 +108,11 @@ export function SignatureUpload({ url }: { url: string | null }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Headmaster&apos;s signature</CardTitle>
-        <p className="text-sm text-muted-foreground">Printed on certificates and report cards. Best: a PNG with a transparent background, about 600 × 200 pixels.</p>
+        <CardTitle>{who === "vicar" ? "Vicar's signature" : "Headmaster's signature"}</CardTitle>
+        <p className="text-sm text-muted-foreground">
+          {who === "vicar" ? "Printed on certificates." : "Printed on certificates and report cards."} Best: a PNG with a
+          transparent background, about 600 × 200 pixels. Without an image the line stays blank, to sign by hand after printing.
+        </p>
       </CardHeader>
       <CardContent className="flex flex-wrap items-center gap-4">
         <div className="flex h-24 w-64 items-center justify-center rounded-lg border bg-white">

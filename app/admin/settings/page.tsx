@@ -24,8 +24,10 @@ export default async function SettingsPage() {
       <PageHeader title="Settings" description="School details and certificate wording. The church banner is printed at the top of every report card and certificate." />
       <div className="space-y-6">
         <SignatureUpload url={s.signature_url} />
+        <SignatureUpload url={s.vicar_signature_url} who="vicar" />
         <SettingsForm initial={{
           school_name: s.school_name, address: s.address ?? "", headmaster_name: s.headmaster_name ?? "",
+          vicar_name: s.vicar_name ?? "",
           certificate_wording: s.certificate_wording,
         }} />
         <PrayerUnitsForm units={units.map((u) => ({ ...u, used: usage.get(u.id) ?? 0 }))} />

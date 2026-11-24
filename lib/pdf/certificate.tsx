@@ -1,100 +1,87 @@
 import "server-only";
+import fs from "node:fs/promises";
+import path from "node:path";
 import QRCode from "qrcode";
-import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
-import { PDF_FONT, PDF_SERIF, registerPdfFonts } from "./fonts";
-import { BANNER_RATIO, type PdfImage } from "./images";
-import type { CertificateRow } from "@/lib/db/types";
-import { formatDate } from "@/lib/dates";
+import { renderToBuffer } from "@react-pdf/renderer";
+import {
+  CertificateBundle, CertificateDocument, registerCertificateFonts, type CertificateProps, type Signatory,
+} from "@/components/certificate/Certificate";
+import { certificateAccent, certificateSubtitle, issueDateText, type DesignType } from "@/lib/certificate-design";
+import { certificateDetails, type PdfCertificate } from "@/lib/data/certificates";
+import { getSettings } from "@/lib/data/settings";
 import { publicEnv } from "@/lib/env";
+import { loadBrandingImage, type PdfImage } from "./images";
 
-const NAVY = "#1e3a8a";
-const GOLD = "#b45309";
+/** Fonts and banner ship with the app (next.config outputFileTracingIncludes). */
+const FONT_DIR = path.join(process.cwd(), "public", "fonts", "certificate");
 
-const s = StyleSheet.create({
-  page: { padding: 24, fontFamily: PDF_FONT, color: "#1f2937" },
-  outer: { flex: 1, borderWidth: 4, borderColor: NAVY, padding: 6 },
-  inner: { flex: 1, borderWidth: 1, borderColor: GOLD, paddingHorizontal: 48, paddingVertical: 28, alignItems: "center" },
-  logo: { width: 64, height: 64, objectFit: "contain", marginBottom: 6 },
-  banner: { width: 600, height: 600 / BANNER_RATIO },
-  titleAfterBanner: { marginTop: 12, fontSize: 28 },
-  school: { fontFamily: PDF_SERIF, fontWeight: 700, fontSize: 22, color: NAVY, textAlign: "center" },
-  address: { fontSize: 10, color: "#6b7280", marginTop: 2 },
-  title: { fontFamily: PDF_SERIF, fontWeight: 700, fontSize: 30, color: GOLD, marginTop: 18, textAlign: "center" },
-  nameMl: { fontSize: 14, color: NAVY, marginTop: 8 },
-  body: { fontSize: 14, lineHeight: 1.7, textAlign: "center", marginTop: 22, maxWidth: 620 },
-  bottom: { position: "absolute", left: 64, right: 64, bottom: 46, flexDirection: "row", alignItems: "flex-end", justifyContent: "space-between" },
-  sign: { width: 190, alignItems: "center" },
-  signImg: { height: 40, width: 150, objectFit: "contain" },
-  signLine: { borderTopWidth: 1, borderTopColor: "#6b7280", width: "100%", marginTop: 4, paddingTop: 3, fontSize: 10, textAlign: "center" },
-  center: { alignItems: "center" },
-  qr: { width: 64, height: 64 },
-  meta: { fontSize: 8, color: "#6b7280", marginTop: 3, textAlign: "center" },
-  revoked: {
-    position: "absolute", top: "40%", left: 0, right: 0, textAlign: "center", fontSize: 72, fontWeight: 700,
-    color: "#dc2626", opacity: 0.25, transform: "rotate(-20deg)",
-  },
-});
+/**
+ * The header banner as a data URL, read once. A plain file path would do on Linux, but react-pdf
+ * reads "D:\..." on Windows as a URL and silently drops the image.
+ */
+let headerImage: Promise<string> | undefined;
+const loadHeaderImage = () => (headerImage ??= fs.readFile(path.join(process.cwd(), "public", "images", "church-header.jpg"))
+  .then((b) => `data:image/jpeg;base64,${b.toString("base64")}`)
+  .catch((e) => { headerImage = undefined; throw e; }));
 
-export type CertificateBranding = {
-  schoolName: string; address: string | null; headmasterName: string | null;
-  banner?: PdfImage | null; logo: PdfImage | null; signature: PdfImage | null;
-};
+/** Same colour as the README example, so the QR scans on every theme. */
+const QR_COLOR = "#14285a";
 
 export function verifyUrl(certificateNo: string) {
   return `${publicEnv.siteUrl().replace(/\/$/, "")}/verify/${encodeURIComponent(certificateNo)}`;
 }
 
-type Cert = Pick<CertificateRow, "id" | "certificate_no" | "title" | "body_text" | "student_name" | "student_name_ml"
-  | "class_teacher_name" | "issued_on" | "revoked">;
+const dataUrl = (img: PdfImage | null) =>
+  img ? `data:image/${img.format === "png" ? "png" : "jpeg"};base64,${img.data.toString("base64")}` : undefined;
 
-export async function renderCertificates(certs: Cert[], b: CertificateBranding) {
-  registerPdfFonts();
-  const qrs = await Promise.all(certs.map((c) =>
-    QRCode.toDataURL(verifyUrl(c.certificate_no), { margin: 0, width: 256, errorCorrectionLevel: "M" })));
+/** Names and signature images from Settings. No image: the line stays blank for signing by hand. */
+export async function loadSignatories(): Promise<{ vicar: Signatory; headmaster: Signatory }> {
+  const s = await getSettings();
+  const [vicar, headmaster] = await Promise.all([
+    loadBrandingImage(s.vicar_signature_url, "vicar"), loadBrandingImage(s.signature_url, "headmaster"),
+  ]);
+  return {
+    vicar: { name: s.vicar_name ?? "", signatureUrl: dataUrl(vicar) },
+    headmaster: { name: s.headmaster_name ?? "", signatureUrl: dataUrl(headmaster) },
+  };
+}
 
-  const doc = (
-    <Document title={certs.length === 1 ? certs[0].certificate_no : "Certificates"} author={b.schoolName}>
-      {certs.map((c, i) => (
-        <Page key={c.id} size="A4" orientation="landscape" style={s.page}>
-          <View style={s.outer}>
-            <View style={s.inner}>
-              {b.banner ? (
-                // eslint-disable-next-line jsx-a11y/alt-text -- react-pdf Image has no alt
-                <Image src={b.banner} style={s.banner} />
-              ) : (
-                <>
-                  {/* eslint-disable-next-line jsx-a11y/alt-text */}
-                  {b.logo && <Image src={b.logo} style={s.logo} />}
-                  <Text style={s.school}>{b.schoolName}</Text>
-                  {b.address && <Text style={s.address}>{b.address}</Text>}
-                </>
-              )}
-              <Text style={[s.title, b.banner ? s.titleAfterBanner : {}]}>{c.title}</Text>
-              {/* the wording itself contains {student_name}; show the Malayalam name under it */}
-              <Text style={s.body}>{c.body_text}</Text>
-              {c.student_name_ml && <Text style={s.nameMl}>{c.student_name_ml}</Text>}
-            </View>
-          </View>
+/**
+ * One PDF, one certificate per page, in the order given. The wording is used exactly as stored;
+ * nothing on an issued certificate is recomputed except the facts row (rank, percentage,
+ * attendance). `preview`: not issued yet, so there is no number to verify and no QR code.
+ */
+export async function renderCertificates(certs: PdfCertificate[], opts: {
+  preview?: boolean;
+  /** given by tests; otherwise read from Settings */
+  signatories?: { vicar: Signatory; headmaster: Signatory };
+  /** given by tests; otherwise worked out from the database */
+  details?: Map<string, { label: string; value: string }[]>;
+} = {}): Promise<Buffer> {
+  registerCertificateFonts(FONT_DIR);
+  const [signatories, details, header] = await Promise.all([
+    opts.signatories ?? loadSignatories(), opts.details ?? certificateDetails(certs), loadHeaderImage(),
+  ]);
 
-          <View style={s.bottom}>
-            <View style={s.sign}>
-              <Text style={s.signLine}>{`Class teacher\n${c.class_teacher_name ?? " "}`}</Text>
-            </View>
-            <View style={s.center}>
-              {/* eslint-disable-next-line jsx-a11y/alt-text */}
-              <Image src={qrs[i]} style={s.qr} />
-              <Text style={s.meta}>{c.certificate_no} · {formatDate(c.issued_on)}</Text>
-            </View>
-            <View style={s.sign}>
-              {/* eslint-disable-next-line jsx-a11y/alt-text */}
-              {b.signature && <Image src={b.signature} style={s.signImg} />}
-              <Text style={s.signLine}>{`Headmaster\n${b.headmasterName ?? " "}`}</Text>
-            </View>
-          </View>
-          {c.revoked && <Text style={s.revoked}>REVOKED</Text>}
-        </Page>
-      ))}
-    </Document>
-  );
-  return renderToBuffer(doc);
+  const items: CertificateProps[] = await Promise.all(certs.map(async (c) => {
+    const url = verifyUrl(c.certificate_no);
+    return {
+      subtitle: certificateSubtitle(c.type as DesignType, c.title),
+      studentName: c.student_name,
+      studentNameMl: c.student_name_ml ?? undefined,
+      body: c.body_text,
+      details: details.get(c.key),
+      issueDate: issueDateText(c.issued_on),
+      certificateNo: c.certificate_no,
+      verifyUrl: opts.preview ? "Preview - not issued yet" : url.replace(/^https?:\/\//, ""),
+      qrDataUrl: opts.preview ? undefined
+        : await QRCode.toDataURL(url, { margin: 0, width: 240, color: { dark: QR_COLOR, light: "#00000000" } }),
+      vicar: signatories.vicar,
+      headmaster: signatories.headmaster,
+      accent: certificateAccent(c.type as DesignType),
+      headerImage: header,
+      revoked: c.revoked,
+    };
+  }));
+  return renderToBuffer(items.length === 1 ? <CertificateDocument {...items[0]} /> : <CertificateBundle items={items} />);
 }

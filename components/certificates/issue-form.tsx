@@ -4,7 +4,8 @@ import { useMemo, useState, useTransition } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Award, FileDown, Loader2, RotateCcw } from "lucide-react";
+import { ArrowLeft, Award, Eye, Loader2, RotateCcw } from "lucide-react";
+import { fetchPdfBlobUrl, PdfActions, PdfFrame } from "./pdf-actions";
 import { issueCertificates } from "@/actions/certificates";
 import {
   CERT_LABELS, CERTIFICATE_TYPES, DEFAULT_TITLES, PLACEHOLDER_HELP, PLACEHOLDERS, fillTemplate,
@@ -37,6 +38,7 @@ export function IssueForm({ classes, classId, className, yearName, students, exa
   const [selected, setSelected] = useState<string[]>([]);
   const [errors, setErrors] = useState<Record<string, string[]>>();
   const [issued, setIssued] = useState<string[] | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const changeType = (t: CertificateType) => {
     setType(t);
@@ -56,14 +58,29 @@ export function IssueForm({ classes, classId, className, yearName, students, exa
     exam: examText, rank: needsExam ? "(rank)" : undefined,
   }), [template, first, className, yearName, examText, needsExam]);
 
+  const payload = () => ({
+    type, class_id: classId, student_ids: selected, title, template, issued_on: issuedOn,
+    exam_id: needsExam ? examId : null, activity_id: needsActivity ? activityId : null,
+  });
+
+  /** Step 2: the PDF exactly as it will be issued, nothing saved yet. */
+  const showPreview = () => start(async () => {
+    try {
+      setPreviewUrl(await fetchPdfBlobUrl("/api/certificates/preview", {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload()),
+      }));
+      setErrors(undefined);
+    } catch (e) {
+      toast.error((e as Error).message);
+    }
+  });
+
   const submit = () => start(async () => {
-    const res = await issueCertificates({
-      type, class_id: classId, student_ids: selected, title, template, issued_on: issuedOn,
-      exam_id: needsExam ? examId : null, activity_id: needsActivity ? activityId : null,
-    });
-    if (!res.ok) { setErrors(res.fieldErrors); toast.error(res.error); return; }
+    const res = await issueCertificates(payload());
+    if (!res.ok) { setErrors(res.fieldErrors); toast.error(res.error); setPreviewUrl(null); return; }
     toast.success(res.message ?? "Issued.");
     setIssued(res.data!.ids);
+    setPreviewUrl(null);
     setSelected([]);
     router.refresh();
   });
@@ -74,13 +91,30 @@ export function IssueForm({ classes, classId, className, yearName, students, exa
         <Award className="mx-auto size-10 text-emerald-700" />
         <p className="text-lg font-semibold text-emerald-950">{issued.length} certificate{issued.length === 1 ? "" : "s"} issued</p>
         <div className="flex flex-wrap justify-center gap-2">
-          <Button size="lg" nativeButton={false}
-            render={<a href={`/api/pdf/certificates?ids=${issued.join(",")}`} target="_blank" rel="noopener" />}>
-            <FileDown /> Open PDF
-          </Button>
-          <Button size="lg" variant="outline" onClick={() => setIssued(null)}><RotateCcw /> Issue more</Button>
-          <Button size="lg" variant="ghost" render={<Link href={listHref} />} nativeButton={false}>All certificates</Button>
+          <PdfActions size="lg" href={`/api/pdf/certificates?ids=${issued.join(",")}`} />
         </div>
+        <div className="flex flex-wrap justify-center gap-2">
+          <Button variant="outline" onClick={() => setIssued(null)}><RotateCcw /> Issue more</Button>
+          <Button variant="ghost" render={<Link href={listHref} />} nativeButton={false}>All certificates</Button>
+        </div>
+      </div>
+    );
+  }
+
+  if (previewUrl) {
+    return (
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <p className="flex-1 text-sm">
+            <b>Preview</b> · {selected.length > 3 ? `the first 3 of ${selected.length} certificates` : `${selected.length} certificate${selected.length === 1 ? "" : "s"}`}.
+            Nothing is issued yet; numbers and QR codes are added when you issue.
+          </p>
+          <Button variant="outline" onClick={() => setPreviewUrl(null)} disabled={pending}><ArrowLeft /> Back to edit</Button>
+          <Button onClick={submit} disabled={pending}>
+            {pending ? <Loader2 className="animate-spin" /> : <Award />} Issue {selected.length} certificate{selected.length === 1 ? "" : "s"}
+          </Button>
+        </div>
+        <PdfFrame src={previewUrl} title="Certificate preview" />
       </div>
     );
   }
@@ -132,9 +166,14 @@ export function IssueForm({ classes, classId, className, yearName, students, exa
         </Field>
 
         <div className="rounded-xl border bg-muted/30 p-4">
-          <p className="mb-1 text-xs font-medium text-muted-foreground">Preview{first ? ` · ${first.name}` : ""}</p>
+          <p className="mb-1 text-xs font-medium text-muted-foreground">Wording{first ? ` · ${first.name}` : ""}</p>
           <p className="text-center text-lg font-semibold">{title}</p>
+          <p className="mt-1 text-center text-xs text-muted-foreground">This certificate is proudly presented to</p>
+          <p className="text-center font-serif text-xl italic">{first?.name ?? "Student name"}</p>
           <p className="mt-2 text-center text-sm whitespace-pre-line">{preview || "-"}</p>
+          <p className="mt-2 text-xs text-muted-foreground">
+            The design prints the student&apos;s name above the wording, so the wording should start after the name.
+          </p>
         </div>
       </div>
 
@@ -158,10 +197,10 @@ export function IssueForm({ classes, classId, className, yearName, students, exa
         )}
         {errors?.student_ids?.[0] && <p className="text-sm text-destructive">{errors.student_ids[0]}</p>}
         <div className="sticky bottom-16 pt-2 lg:bottom-4">
-          <Button size="lg" className="w-full shadow-lg" onClick={submit}
+          <Button size="lg" className="w-full shadow-lg" onClick={showPreview}
             disabled={pending || !selected.length || !title.trim() || !template.trim()
               || (needsExam && !examId) || (needsActivity && !activityId)}>
-            {pending ? <Loader2 className="animate-spin" /> : <Award />} Issue {selected.length || ""} certificate{selected.length === 1 ? "" : "s"}
+            {pending ? <Loader2 className="animate-spin" /> : <Eye />} Preview {selected.length || ""} certificate{selected.length === 1 ? "" : "s"}
           </Button>
         </div>
       </fieldset>
