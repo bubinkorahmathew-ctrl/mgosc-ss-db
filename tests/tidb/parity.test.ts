@@ -281,7 +281,8 @@ describe.each(Object.keys(ACTORS) as ActorName[])("%s", (actor) => {
     const spec = await onPostgres(uid, op);
     const expected = name === "students: create" && (actor === "teacher1" || actor === "coteacher") ? 1
       : teacherIssues ? "error"
-      : tooOld ? (spec === "error" || op.kind === "insert" ? "error" : 0)
+      // an old row is out of reach: an insert over it is refused, an update or delete matches nothing
+      : tooOld ? (op.kind === "insert" ? "error" : 0)
       : spec;
     expect(await onTiDb(uid, op)).toBe(expected);
   });
