@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
 import { createClient } from "@/lib/db/server";
-import { getClassStudents, getTeacherClassContext } from "@/lib/data/teacher-context";
+import { getTeacherClassContext } from "@/lib/data/teacher-context";
 import { formatDate } from "@/lib/dates";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { ClassSwitcher } from "@/components/teacher/class-switcher";
+import { MarksEntry } from "@/components/attendance/marks-entry";
 import { ExamPicker } from "./exam-picker";
-import { MarksGrid } from "./marks-grid";
 
 export const metadata: Metadata = { title: "Marks" };
 
@@ -28,18 +28,7 @@ export default async function MarksPage({ searchParams }: PageProps<"/teacher/ma
   } else if (!subjects?.length) {
     body = <EmptyState title="No subjects have been set up yet." />;
   } else {
-    const [students, { data: marks }] = await Promise.all([
-      getClassStudents(selected.id),
-      dbc.from("marks").select("student_id, subject_id, marks_obtained").eq("exam_id", exam!.id),
-    ]);
-    const initial: Record<string, Record<string, number>> = {};
-    for (const m of marks ?? []) (initial[m.student_id] ??= {})[m.subject_id] = Number(m.marks_obtained);
-    body = !students.length ? <EmptyState title="There are no active students in this class." /> : (
-      <MarksGrid key={exam!.id} examId={exam!.id}
-        subjects={subjects.map((s) => ({ id: s.id, name: s.name, max: Number(s.max_marks) }))}
-        students={students.map((s) => ({ id: s.id, name: s.full_name, nameMl: s.full_name_ml }))}
-        initial={initial} />
-    );
+    body = <MarksEntry key={exam!.id} examId={exam!.id} classId={selected.id} />;
   }
 
   return (

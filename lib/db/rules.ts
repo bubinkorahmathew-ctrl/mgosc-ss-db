@@ -16,14 +16,14 @@ const ids = (rows: Row[], column: string) =>
 /** Lock the referenced students and exams, so nobody can move them between the check and the write. */
 export async function loadFacts(tx: Executor, table: TableName, rows: Row[]): Promise<Facts> {
   const facts: Facts = { studentClass: new Map(), examClass: new Map() };
-  if (!["marks", "attendance", "activities", "certificates"].includes(table)) return facts;
+  if (!["marks", "attendance", "activities", "certificates", "exam_attendance"].includes(table)) return facts;
   const students = ids(rows, "student_id");
   if (students.length) {
     const found = await tx.query<{ id: string; class_id: string | null }>(
       "select id, class_id from students where id in (?) order by id for update", [students]);
     for (const s of found) facts.studentClass.set(s.id, s.class_id);
   }
-  const exams = table === "marks" || table === "certificates" ? ids(rows, "exam_id") : [];
+  const exams = ["marks", "certificates", "exam_attendance"].includes(table) ? ids(rows, "exam_id") : [];
   if (exams.length) {
     const found = await tx.query<{ id: string; class_id: string }>(
       "select id, class_id from exams where id in (?) order by id for update", [exams]);
@@ -37,10 +37,10 @@ export function forceInsertValues(table: TableName, row: Row, actor: Actor, fact
   if (!actor.headmaster) {
     // a teacher can only ever record work as themselves
     if (table === "marks") row.entered_by = actor.id;
-    if (table === "attendance") row.marked_by = actor.id;
+    if (table === "attendance" || table === "exam_attendance") row.marked_by = actor.id;
     if (table === "activities") row.created_by = actor.id;
     if (table === "students") {
-      Object.assign(row, { status: "active", photo_url: null, created_at: now });
+      Object.assign(row, { status: "active", inactive_reason: null, photo_url: null, created_at: now });
       delete row.admission_no; // assigned in completeStudents
     }
   }
@@ -59,6 +59,8 @@ export function forceInsertValues(table: TableName, row: Row, actor: Actor, fact
       row.issued_on = row.issued_on ?? todayIST(now);
       break;
     case "marks": // trg_validate_marks
+    case "attendance":
+    case "exam_attendance":
       row.updated_at = now;
       break;
   }
@@ -98,10 +100,10 @@ export function applyUpdateRules(table: TableName, before: Row[], patch: Row, ac
 
   if (!actor.headmaster) {
     if (table === "marks") out.entered_by = actor.id;
-    if (table === "attendance") out.marked_by = actor.id;
+    if (table === "attendance" || table === "exam_attendance") out.marked_by = actor.id;
     if (table === "activities") delete out.created_by;
   }
-  if (table === "marks") out.updated_at = now;
+  if (table === "marks" || table === "attendance" || table === "exam_attendance") out.updated_at = now;
   if (table === "school_settings") out.updated_at = now;
   return out;
 }
@@ -136,6 +138,14 @@ export async function validateRows(
       if (value === undefined) throw new DbError("marks_obtained is required", "23502");
       // trg_validate_marks
       if (!(value >= 0 && value <= mx)) throw violates(`marks_obtained must be between 0 and ${mx}`);
+      if (row.is_absent && Number(value) !== 0) throw violates("a subject marked absent carries 0 marks");
+    }
+    // no marks for a student marked absent for the whole exam
+    const pairs = rows.map((r) => [r.exam_id, r.student_id]);
+    if (pairs.length) {
+      const absent = await tx.query(
+        "select 1 from exam_attendance where (exam_id, student_id) in (?) and status = 'absent' limit 1 for update", [pairs]);
+      if (absent.length) throw violates("the student was absent for this exam");
     }
     if (sets("student_id", "exam_id")) { // trg_marks_student_class
       for (const row of rows) {
@@ -143,6 +153,20 @@ export async function validateRows(
         if (!studentClass || studentClass !== facts.examClass.get(row.exam_id as string)) {
           throw violates("student is not in this exam's class");
         }
+      }
+    }
+  }
+
+  if (table === "attendance" && sets("date")) {
+    const today = todayIST(new Date());
+    if (rows.some((r) => typeof r.date === "string" && r.date > today)) throw violates("attendance cannot be marked for a future date");
+  }
+
+  if (table === "exam_attendance" && sets("student_id", "exam_id")) {
+    for (const row of rows) {
+      const studentClass = facts.studentClass.get(row.student_id as string);
+      if (!studentClass || studentClass !== facts.examClass.get(row.exam_id as string)) {
+        throw violates("student is not in this exam's class");
       }
     }
   }
@@ -162,6 +186,14 @@ export async function validateRows(
     }
   }
 
+  // a public registration may only pick a unit that is offered on the form
+  if (table === "registrations" && !touched) {
+    const units = ids(rows, "prayer_unit_id");
+    const active = units.length
+      ? await tx.query("select id from prayer_units where id in (?) and active for update", [units]) : [];
+    if (active.length !== units.length) throw violates("choose a prayer unit from the list");
+  }
+
   // CHECK constraints
   for (const row of rows) {
     switch (table) {
@@ -173,9 +205,17 @@ export async function validateRows(
           checkLength(row, "full_name_ml", 0, 120);
           checkLength(row, "prayer_group", 0, 120);
           checkLength(row, "baptism_name", 0, 120);
-          checkLength(row, "father_phone", 0, 16);
+          checkLength(row, "father_name", 1, 120);
+          checkLength(row, "father_phone", 8, 16);
           checkLength(row, "email", 0, 254);
         }
+        break;
+      case "prayer_units":
+        checkLength(row, "name", 1, 120);
+        break;
+      case "attendance":
+      case "exam_attendance":
+        checkLength(row, "remark", 0, 200);
         break;
       case "activities":
         checkLength(row, "title", 1, 200);

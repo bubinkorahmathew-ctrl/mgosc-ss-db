@@ -21,14 +21,16 @@ export type ClassRow = {
 export type ClassTeacherRow = { class_id: string; teacher_id: string };
 type PersonalFields = {
   full_name: string; full_name_ml: string | null; dob: string; gender: Gender;
-  father_name: string | null; mother_name: string | null; guardian_phone: string;
+  father_name: string; mother_name: string | null; guardian_phone: string;
   address: string | null; baptised: boolean; school_class: string; school_name: string | null;
-  prayer_group: string | null; baptism_name: string | null;
-  father_phone: string | null; email: string | null;
+  /** old free-text field, kept but no longer asked for: prayer_unit_id replaced it */
+  prayer_group: string | null; prayer_unit_id: string; baptism_name: string | null;
+  father_phone: string; email: string | null;
 };
+export type PrayerUnitRow = { id: string; name: string; active: boolean; created_at: string };
 export type StudentRow = PersonalFields & {
   id: string; admission_no: string; photo_url: string | null; status: StudentStatus;
-  class_id: string | null; created_at: string;
+  inactive_reason: string | null; class_id: string | null; created_at: string;
 };
 export type RegistrationRow = PersonalFields & {
   id: string; status: RegistrationStatus; submitted_at: string; reviewed_by: string | null;
@@ -41,10 +43,18 @@ export type ExamRow = {
 };
 export type MarkRow = {
   id: string; exam_id: string; student_id: string; subject_id: string; marks_obtained: number;
+  /** attended the exam but missed this subject: shown as AB, marks 0 */
+  is_absent: boolean;
   remarks: string | null; entered_by: string | null; updated_at: string;
 };
 export type AttendanceRow = {
-  id: string; student_id: string; class_id: string; date: string; status: AttendanceStatus; marked_by: string | null;
+  id: string; student_id: string; class_id: string; date: string; status: AttendanceStatus;
+  remark: string | null; marked_by: string | null; updated_at: string;
+};
+export type ExamAttendanceStatus = "present" | "absent";
+export type ExamAttendanceRow = {
+  id: string; exam_id: string; student_id: string; status: ExamAttendanceStatus;
+  remark: string | null; marked_by: string | null; updated_at: string;
 };
 export type ActivityRow = {
   id: string; class_id: string; student_id: string | null; type: ActivityType; title: string;

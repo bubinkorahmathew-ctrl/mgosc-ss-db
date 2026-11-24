@@ -4,7 +4,7 @@ import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from
 import { parseAttendance, parseMarks, parseStudents } from "@/lib/import/parse";
 import { readSheet } from "@/lib/import/sheet";
 import { attendanceTemplate, marksTemplate, studentTemplate } from "@/lib/import/templates";
-import { createTiDbTest, IDS, type Sandbox, type TiDbTest } from "./harness";
+import { createTiDbTest, daysAgo, IDS, PRAYER_UNIT, type Sandbox, type TiDbTest } from "./harness";
 
 let t: TiDbTest;
 let s: Sandbox;
@@ -29,22 +29,28 @@ const subjects = async () =>
 
 describe("students", () => {
   it("a teacher's file goes into their class in one write, numbered in order", async () => {
-    const sheet = await fill(await studentTemplate(), (ws) => {
-      ws.addRow(["Asha", "01/02/2020", "Female", "9000000001", "LKG"]);
-      ws.addRow(["Binu", "02/03/2019", "Male", "9000000002", "UKG", null, "St. Thomas"]);
+    const units = await s.as(IDS.teacher1).select("prayer_units", { where: [["active", "eq", true]] });
+    const sheet = await fill(await studentTemplate(units.map((u) => u.name)), (ws) => {
+      ws.addRow(["Asha", "01/02/2020", "Female", "9000000001", "LKG", null, "St. Thomas", "Joseph", null, "9000000011"]);
+      ws.addRow(["Binu", "02/03/2019", "Male", "9000000002", "UKG", null, "st. thomas", "Mathew", null, "+966501234567"]);
     });
-    const { report, students } = parseStudents(sheet);
+    const { report, students } = parseStudents(sheet, units);
     expect(report).toMatchObject({ ready: 2, problems: 0 });
     const made = await t1().insert("students", students.map((x) => ({ ...x.data, class_id: IDS.class1, status: "active" as const })));
-    expect(made.map((m) => [m.full_name, m.admission_no, m.class_id, m.prayer_group]))
-      .toEqual([["Asha", "SS-2026-0011", IDS.class1, null], ["Binu", "SS-2026-0012", IDS.class1, "St. Thomas"]]);
+    expect(made.map((m) => [m.full_name, m.admission_no, m.class_id, m.prayer_unit_id, m.father_phone])).toEqual([
+      ["Asha", "SS-2026-0011", IDS.class1, PRAYER_UNIT, "9000000011"],
+      ["Binu", "SS-2026-0012", IDS.class1, PRAYER_UNIT, "+966501234567"],
+    ]);
   });
 
   it("saves nothing when any row is refused", async () => {
     const before = await s.as(IDS.headmaster).count("students");
-    const ok = { full_name: "Ok", dob: "2020-01-01", gender: "male" as const, guardian_phone: "9000000003", school_class: "LKG", class_id: IDS.class1 };
+    const ok = {
+      full_name: "Ok", dob: "2020-01-01", gender: "male" as const, guardian_phone: "9000000003", school_class: "LKG", class_id: IDS.class1,
+      prayer_unit_id: PRAYER_UNIT, father_name: "Father", father_phone: "9000000003",
+    };
     await expect(t1().insert("students", [ok, { ...ok, full_name: "Other class", class_id: IDS.class2 }])).rejects.toThrow(/row-level security/);
-    await expect(t1().insert("students", [ok, { ...ok, prayer_group: "x".repeat(121) }])).rejects.toThrow();
+    await expect(t1().insert("students", [ok, { ...ok, father_name: "x".repeat(121) }])).rejects.toThrow();
     expect(await s.as(IDS.headmaster).count("students")).toBe(before);
   });
 });
@@ -85,11 +91,13 @@ describe("marks", () => {
 describe("attendance", () => {
   it("a teacher saves several days for their class; another class's teacher cannot", async () => {
     const students = await classStudents(IDS.class1);
-    const sheet = await fill(await attendanceTemplate({ title: "x", students, date: "2026-11-15" }), (ws) => {
-      ws.getCell(1, 4).value = "22/11/2026";
+    // two recent days: teachers write attendance only 14 days back
+    const [first, second] = [daysAgo(9), daysAgo(2)];
+    const sheet = await fill(await attendanceTemplate({ title: "x", students, date: first }), (ws) => {
+      ws.getCell(1, 4).value = second.split("-").reverse().join("/");
       students.forEach((_, i) => { ws.getCell(i + 2, 3).value = "P"; ws.getCell(i + 2, 4).value = i ? "A" : "L"; });
     });
-    const { report, entries } = parseAttendance(sheet, { students, today: "2026-11-23" });
+    const { report, entries } = parseAttendance(sheet, { students, today: daysAgo(0) });
     expect(report).toMatchObject({ fileErrors: [], problems: 0, ready: students.length });
     const rows = entries.map((e) => ({ ...e, class_id: IDS.class1, marked_by: IDS.teacher1 }));
 
@@ -98,7 +106,7 @@ describe("attendance", () => {
     expect(written).toHaveLength(students.length * 2);
     // uploading the same file again updates, never duplicates
     await t1().upsert("attendance", rows);
-    expect(await t1().count("attendance", [["class_id", "eq", IDS.class1], ["date", "in", ["2026-11-15", "2026-11-22"]]]))
+    expect(await t1().count("attendance", [["class_id", "eq", IDS.class1], ["date", "in", [first, second]]]))
       .toBe(students.length * 2);
   });
 

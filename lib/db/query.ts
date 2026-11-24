@@ -143,6 +143,11 @@ class Query<T extends TableName, D> implements PromiseLike<Result<D>> {
     this.conditions.push([column, "ilike", pattern]);
     return this;
   }
+  /** Several conditions at once; every one must hold. */
+  match(conditions: readonly Condition[]) {
+    this.conditions.push(...conditions);
+    return this;
+  }
   /** Structured on purpose: there is no filter-string syntax for user input to break out of. */
   or(conditions: readonly Condition[]) {
     this.conditions.push({ or: conditions });

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { requireRole } from "@/lib/auth";
 import { getClassOptions } from "@/lib/data/classes";
+import { prayerUnitOptions } from "@/lib/data/students";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { StudentForm } from "@/components/students/student-form";
 
@@ -9,7 +10,8 @@ export const metadata: Metadata = { title: "Add student" };
 export default async function TeacherNewStudentPage({ searchParams }: PageProps<"/teacher/students/new">) {
   await requireRole("teacher");
   const sp = await searchParams;
-  const classes = await getClassOptions({ currentOnly: true }); // the policies return only the teacher's classes
+  // the policies return only the teacher's classes
+  const [classes, prayerUnits] = await Promise.all([getClassOptions({ currentOnly: true }), prayerUnitOptions()]);
   if (!classes.length) {
     return <EmptyState title="No class in the current year is assigned to you.">Please ask an admin to assign your class.</EmptyState>;
   }
@@ -18,7 +20,8 @@ export default async function TeacherNewStudentPage({ searchParams }: PageProps<
   return (
     <>
       <PageHeader title="Add student" description="You can add students to your own classes. The admission number is generated automatically." />
-      <StudentForm teacherClassId={selected.id} classes={classes.map((c) => ({ id: c.id, label: c.label }))} />
+      <StudentForm teacherClassId={selected.id} classes={classes.map((c) => ({ id: c.id, label: c.label }))}
+        prayerUnits={prayerUnits} />
     </>
   );
 }

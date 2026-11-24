@@ -3,6 +3,7 @@ import { apiUser, textResponse } from "@/lib/api";
 import { AuthError } from "@/lib/auth";
 import { todayISO } from "@/lib/dates";
 import { loadClass, loadExam } from "@/lib/import/context";
+import { getPrayerUnits } from "@/lib/data/students";
 import { attendanceTemplate, marksTemplate, studentTemplate } from "@/lib/import/templates";
 import { isoDate, uuid } from "@/lib/validation/common";
 import { xlsxResponse } from "@/lib/xlsx";
@@ -15,7 +16,10 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/import-templ
   const sp = req.nextUrl.searchParams;
 
   try {
-    if (kind === "students") return xlsxResponse(await studentTemplate(), "Students upload.xlsx");
+    if (kind === "students") {
+      const units = (await getPrayerUnits()).filter((u) => u.active).map((u) => u.name);
+      return xlsxResponse(await studentTemplate(units), "Students upload.xlsx");
+    }
 
     if (kind === "marks") {
       const examId = uuid.safeParse(sp.get("exam"));

@@ -4,7 +4,9 @@ import { SCHOOL_CLASSES } from "@/lib/config";
 import { formatDate } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { percent } from "@/lib/format";
-import { activityReport, attendanceReport, defaultRange, studentReport } from "@/lib/data/reports";
+import { activityReport, attendanceReport, defaultRange, examAttendanceReport, studentReport } from "@/lib/data/reports";
+import { getClassExams } from "@/lib/data/results";
+import { getPrayerUnits } from "@/lib/data/students";
 import { parseRange, parseStudentReport, toQuery } from "@/lib/validation/reports";
 import { ACTIVITY_LABELS } from "@/lib/validation/teacher";
 import { Button } from "@/components/ui/button";
@@ -16,6 +18,7 @@ import { StatusBadge, genderLabel } from "@/components/status-badge";
 type SP = Record<string, string | string[] | undefined>;
 export type ClassOpt = { id: string; label: string };
 const SHOW_MAX = 500;
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
 
 export function ReportTabs({ base, tab, tabs, keep, label = "Reports" }: {
   base: string; tab: string; tabs: { id: string; label: string }[]; keep?: Record<string, string | undefined>; label?: string;
@@ -73,13 +76,26 @@ const tooMany = (n: number) => n > SHOW_MAX && (
 export async function StudentsReport({ sp, classes, allowed }: { sp: SP; classes: ClassOpt[]; allowed: string[] | "all" }) {
   const f = parseStudentReport(sp);
   if (f.class_id && allowed !== "all" && !allowed.includes(f.class_id)) f.class_id = undefined;
-  const rows = await studentReport(f, allowed);
-  const q = toQuery({ class: f.class_id, school_class: f.school_class, gender: f.gender, status: f.status, age_min: f.age_min, age_max: f.age_max, as_of: f.as_of });
+  const [rows, prayerUnits] = await Promise.all([studentReport(f, allowed), getPrayerUnits()]);
+  const q = toQuery({
+    class: f.class_id, q: f.q, school_class: f.school_class, gender: f.gender, status: f.status, prayer_unit_id: f.prayer_unit_id,
+    age_min: f.age_min, age_max: f.age_max, as_of: f.as_of, dob_from: f.dob_from, dob_to: f.dob_to,
+    dob_year: f.dob_year, dob_month: f.dob_month, incomplete: f.incomplete, sort: f.sort, dir: f.dir,
+  });
 
   return (
     <>
       <FilterForm tab="students" exportHref={`/api/export/students?${q}`}>
         <ClassSelect classes={classes} value={f.class_id} allLabel={allowed === "all" ? "All classes" : "All my classes"} />
+        <Field id="r-q" label="Search" hint="Name, admission no or phone">
+          <Input id="r-q" name="q" type="search" defaultValue={f.q ?? ""} />
+        </Field>
+        <Field id="r-pu" label="Prayer unit">
+          <NativeSelect id="r-pu" name="prayer_unit_id" defaultValue={f.prayer_unit_id ?? ""}>
+            <option value="">Any</option>
+            {prayerUnits.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+          </NativeSelect>
+        </Field>
         <Field id="r-sc" label="School class">
           <NativeSelect id="r-sc" name="school_class" defaultValue={f.school_class ?? ""}>
             <option value="">Any</option>
@@ -99,7 +115,30 @@ export async function StudentsReport({ sp, classes, allowed }: { sp: SP; classes
         </Field>
         <Field id="r-amin" label="Age from"><Input id="r-amin" name="age_min" inputMode="numeric" defaultValue={f.age_min ?? ""} placeholder="any" /></Field>
         <Field id="r-amax" label="Age to"><Input id="r-amax" name="age_max" inputMode="numeric" defaultValue={f.age_max ?? ""} placeholder="any" /></Field>
-        <Field id="r-asof" label="Age as of" hint="Default: today"><Input id="r-asof" name="as_of" type="date" defaultValue={f.as_of} /></Field>
+        <Field id="r-asof" label="Age as on" hint="Default: today"><Input id="r-asof" name="as_of" type="date" defaultValue={f.as_of} /></Field>
+        <Field id="r-df" label="Born from"><Input id="r-df" name="dob_from" type="date" defaultValue={f.dob_from ?? ""} /></Field>
+        <Field id="r-dt" label="Born to"><Input id="r-dt" name="dob_to" type="date" defaultValue={f.dob_to ?? ""} /></Field>
+        <Field id="r-dy" label="Birth year"><Input id="r-dy" name="dob_year" inputMode="numeric" placeholder="any" defaultValue={f.dob_year ?? ""} /></Field>
+        <Field id="r-dm" label="Birth month">
+          <NativeSelect id="r-dm" name="dob_month" defaultValue={f.dob_month ?? ""}>
+            <option value="">Any</option>
+            {MONTHS.map((m, i) => <option key={m} value={i + 1}>{m}</option>)}
+          </NativeSelect>
+        </Field>
+        <Field id="r-sort" label="Sort by">
+          <NativeSelect id="r-sort" name="sort" defaultValue={f.sort ?? "name"}>
+            <option value="name">Name</option><option value="age">Age</option><option value="dob">Date of birth</option>
+          </NativeSelect>
+        </Field>
+        <Field id="r-dir" label="Order">
+          <NativeSelect id="r-dir" name="dir" defaultValue={f.dir ?? "asc"}>
+            <option value="asc">Ascending</option><option value="desc">Descending</option>
+          </NativeSelect>
+        </Field>
+        <label className="flex min-h-9 items-center gap-2 self-end text-sm">
+          <input type="checkbox" name="incomplete" value="1" defaultChecked={f.incomplete === "1"} className="size-4 accent-[var(--primary)]" />
+          Incomplete records only
+        </label>
       </FilterForm>
 
       <p className="mb-2 text-sm font-medium">{rows.length} student{rows.length === 1 ? "" : "s"}
@@ -109,7 +148,7 @@ export async function StudentsReport({ sp, classes, allowed }: { sp: SP; classes
         <div className="overflow-x-auto rounded-xl border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left">
-              <tr>{["Adm. no", "Name", "Class", "Date of birth", "Age", "Gender", "School class", "Phone", "Status"].map((h) =>
+              <tr>{["Adm. no", "Name", "Class", "Date of birth", "Age", "Gender", "School class", "Prayer unit", "Phone", "Status"].map((h) =>
                 <th key={h} className="px-3 py-2 font-medium whitespace-nowrap">{h}</th>)}</tr>
             </thead>
             <tbody className="divide-y">
@@ -120,9 +159,10 @@ export async function StudentsReport({ sp, classes, allowed }: { sp: SP; classes
                     {r.full_name_ml && <div className="text-xs text-muted-foreground">{r.full_name_ml}</div>}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{r.class || "-"}</td>
                   <td className="px-3 py-2 tabular-nums">{formatDate(r.dob)}</td>
-                  <td className="px-3 py-2 tabular-nums">{r.age}</td>
+                  <td className="px-3 py-2 whitespace-nowrap tabular-nums">{r.age_ym}</td>
                   <td className="px-3 py-2">{genderLabel(r.gender)}</td>
                   <td className="px-3 py-2 whitespace-nowrap">{r.school_class}</td>
+                  <td className="px-3 py-2">{r.prayer_unit}</td>
                   <td className="px-3 py-2 tabular-nums">{r.guardian_phone}</td>
                   <td className="px-3 py-2"><StatusBadge status={r.status} /></td>
                 </tr>
@@ -178,6 +218,59 @@ export async function AttendanceReport({ sp, classes }: { sp: SP; classes: Class
         </div>
       )}
       <p className="mt-2 text-xs text-muted-foreground">Late counts as attended. Below 75% is shown in red.</p>
+    </>
+  );
+}
+
+/** Per exam: how many sat it, and who was absent. */
+export async function ExamAttendanceReportView({ sp, classes }: { sp: SP; classes: ClassOpt[] }) {
+  const asked = typeof sp.class === "string" ? sp.class : undefined;
+  const classId = classes.find((c) => c.id === asked)?.id ?? classes[0]?.id;
+  if (!classId) return <EmptyState title="No classes to report on." />;
+  const exams = await getClassExams(classId);
+  const exam = exams.find((e) => e.id === sp.exam) ?? exams[0];
+  const data = exam ? await examAttendanceReport(exam.id) : null;
+
+  return (
+    <>
+      <FilterForm tab="exam-attendance" exportHref={data ? `/api/export/exam-attendance?${toQuery({ exam: data.exam.id })}` : undefined}>
+        <ClassSelect classes={classes} value={classId} />
+        <Field id="r-exam" label="Exam" hint="Press Show after changing the class">
+          <NativeSelect id="r-exam" name="exam" defaultValue={exam?.id ?? ""}>
+            {exams.map((e) => <option key={e.id} value={e.id}>{e.exam_date ? `${e.name} (${formatDate(e.exam_date)})` : e.name}</option>)}
+          </NativeSelect>
+        </Field>
+      </FilterForm>
+      {!data ? <EmptyState title="No exams for this class yet." /> : (
+        <div className="space-y-3">
+          <p className="text-sm font-medium">
+            {data.exam.name} · {data.className}{data.exam.exam_date ? ` · ${formatDate(data.exam.exam_date)}` : ""}:{" "}
+            <span className="text-emerald-700">{data.present} present</span> ·{" "}
+            <span className="text-red-700">{data.absent} absent</span>
+            {data.notMarked.length > 0 && <> · <span className="text-amber-700">{data.notMarked.length} not marked</span></>}
+          </p>
+          {!data.absent ? <EmptyState title="Nobody was absent." /> : (
+            <div className="overflow-x-auto rounded-xl border">
+              <table className="w-full text-sm">
+                <thead className="bg-muted/50 text-left">
+                  <tr><th className="px-3 py-2 font-medium">Absentee</th><th className="px-3 py-2 font-medium">Remark</th></tr>
+                </thead>
+                <tbody className="divide-y">
+                  {data.absentees.map((a) => (
+                    <tr key={a.admission_no}>
+                      <td className="px-3 py-2"><div className="font-medium">{a.full_name}</div><div className="text-xs text-muted-foreground">{a.admission_no}</div></td>
+                      <td className="px-3 py-2">{a.remark || "-"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+          {data.notMarked.length > 0 && (
+            <p className="text-xs text-muted-foreground">Not marked yet: {data.notMarked.map((s) => s.full_name).join(", ")}.</p>
+          )}
+        </div>
+      )}
     </>
   );
 }

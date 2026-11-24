@@ -5,9 +5,12 @@ import { checkAndRecord, clientIp, hashIp, type AttemptStore } from "@/lib/rate-
 import { sanitizeSearch } from "@/lib/data/students";
 import { generateTempPassword } from "@/lib/password";
 
+const UNIT = "70000000-0000-4000-8000-000000000001";
 const valid = {
   full_name: "  Christy   Paul ",
-  prayer_group: "  St. Thomas   Prayer Group ",
+  prayer_unit_id: UNIT,
+  father_name: "  Paul   V ",
+  father_phone: "98470-12345",
   dob: "2020-04-04",
   gender: "female",
   guardian_phone: "94470 00011",
@@ -17,22 +20,58 @@ const valid = {
   website: "",
 };
 
+const errorsOf = (input: unknown) => {
+  const r = registrationSchema.safeParse(input);
+  // the first message per field, as the form shows it
+  return r.success ? {} : Object.fromEntries(r.error.issues.toReversed().map((i) => [String(i.path[0]), i.message]));
+};
+
 describe("registration validation", () => {
   it("accepts a valid registration and normalises text", () => {
     const r = registrationSchema.parse(valid);
     expect(r.full_name).toBe("Christy Paul");
     expect(r.guardian_phone).toBe("9447000011");
-    expect(r.father_name).toBeNull();
-    expect(r.prayer_group).toBe("St. Thomas Prayer Group");
+    expect(r.father_name).toBe("Paul V");
+    expect(r.father_phone).toBe("9847012345");
+    expect(r.prayer_unit_id).toBe(UNIT);
     expect(r.baptism_name).toBe("Mariam");
   });
 
-  it("father's mobile and email are optional and checked", () => {
-    const r = registrationSchema.parse({ ...valid, father_phone: "98470 12345", email: "  Parent@Example.COM " });
-    expect([r.father_phone, r.email]).toEqual(["9847012345", "parent@example.com"]);
-    expect(registrationSchema.parse({ ...valid, father_phone: "", email: "" })).toMatchObject({ father_phone: null, email: null });
-    expect(registrationSchema.safeParse({ ...valid, father_phone: "123" }).success).toBe(false);
+  it("prayer unit, father's name and father's mobile are required, with clear messages", () => {
+    const missing: Partial<typeof valid> = { ...valid };
+    delete missing.prayer_unit_id;
+    delete missing.father_name;
+    delete missing.father_phone;
+    expect(errorsOf(missing)).toMatchObject({
+      prayer_unit_id: "Select the prayer unit.",
+      father_name: "Father's name is required.",
+      father_phone: "Father's mobile number is required.",
+    });
+    expect(errorsOf({ ...valid, prayer_unit_id: "", father_name: "  ", father_phone: "" })).toMatchObject({
+      prayer_unit_id: "Select the prayer unit.",
+      father_name: "Father's name is required.",
+      father_phone: "Father's mobile number is required.",
+    });
+    expect(errorsOf({ ...valid, prayer_unit_id: "not-an-id" }).prayer_unit_id).toBe("Select the prayer unit.");
+  });
+
+  it("father's mobile: 8 to 15 digits, optional + country code, spaces and dashes removed", () => {
+    expect(registrationSchema.parse({ ...valid, father_phone: "+966 50-123-4567" }).father_phone).toBe("+966501234567");
+    expect(registrationSchema.parse({ ...valid, father_phone: "12345678" }).father_phone).toBe("12345678");
+    expect(registrationSchema.parse({ ...valid, father_phone: "123456789012345" }).father_phone).toBe("123456789012345");
+    for (const bad of ["1234567", "1234567890123456", "98470x2345", "++919847012345", "91+9847012345"]) {
+      expect(errorsOf({ ...valid, father_phone: bad }).father_phone).toMatch(/8 to 15 digits/);
+    }
+  });
+
+  it("email is optional and checked", () => {
+    expect(registrationSchema.parse({ ...valid, email: "  Parent@Example.COM " }).email).toBe("parent@example.com");
+    expect(registrationSchema.parse({ ...valid, email: "" }).email).toBeNull();
     expect(registrationSchema.safeParse({ ...valid, email: "not-an-email" }).success).toBe(false);
+  });
+
+  it("no longer takes the free-text prayer group", () => {
+    expect(registrationSchema.parse({ ...valid, prayer_group: "St. Thomas" })).not.toHaveProperty("prayer_group");
   });
 
   it("teacher 12th passed year is optional, a real past year", () => {
@@ -62,17 +101,12 @@ describe("registration validation", () => {
   it("normalises Malayalam to NFC", () => {
     // ൊ (U+0D4A) written decomposed as െ + ാ (U+0D46 U+0D3E)
     const decomposed = "ജൊസ";
-    const r = registrationSchema.parse({ ...valid, prayer_group: decomposed });
-    expect(r.prayer_group).toBe(decomposed.normalize("NFC"));
+    const r = registrationSchema.parse({ ...valid, father_name: decomposed });
+    expect(r.father_name).toBe(decomposed.normalize("NFC"));
   });
 
   it("no longer accepts a Malayalam name", () => {
     expect(registrationSchema.parse({ ...valid, full_name_ml: "ക്രിസ്റ്റി" })).not.toHaveProperty("full_name_ml");
-  });
-
-  it("prayer group is optional", () => {
-    expect(registrationSchema.parse({ ...valid, prayer_group: "" }).prayer_group).toBeNull();
-    expect(registrationSchema.parse({ ...valid, prayer_group: undefined }).prayer_group).toBeNull();
   });
 
   it.each([
@@ -81,8 +115,8 @@ describe("registration validation", () => {
     ["bad phone", { guardian_phone: "12345" }],
     ["unknown school class", { school_class: "Grade 13" }],
     ["html in name", { full_name: "<script>x</script>" }],
-    ["html in prayer group", { prayer_group: "<b>x</b>" }],
-    ["over-long prayer group", { prayer_group: "x".repeat(121) }],
+    ["html in father's name", { father_name: "<b>x</b>" }],
+    ["over-long father's name", { father_name: "x".repeat(121) }],
   ])("rejects %s", (_label, patch) => {
     expect(registrationSchema.safeParse({ ...valid, ...patch }).success).toBe(false);
   });

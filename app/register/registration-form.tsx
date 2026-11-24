@@ -9,14 +9,14 @@ import { Loader2 } from "lucide-react";
 import type { z } from "zod";
 import { submitRegistration } from "@/actions/registration";
 import { registrationSchema } from "@/lib/validation/registration";
-import { PersonalFieldsFieldset } from "@/components/form/personal-fields";
+import { PersonalFieldsFieldset, type PrayerUnitOption } from "@/components/form/personal-fields";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 
 type In = z.input<typeof registrationSchema>;
 type Out = z.output<typeof registrationSchema>;
 
-export function RegistrationForm() {
+export function RegistrationForm({ prayerUnits }: { prayerUnits: PrayerUnitOption[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [serverErrors, setServerErrors] = useState<Record<string, string[]>>();
@@ -43,7 +43,7 @@ export function RegistrationForm() {
       <CardContent>
         <form onSubmit={onSubmit} noValidate className="space-y-6">
           <PersonalFieldsFieldset register={form.register} errors={form.formState.errors}
-            serverErrors={serverErrors} />
+            serverErrors={serverErrors} prayerUnits={prayerUnits} />
 
           {/* Honeypot: hidden from people and screen readers; bots tend to fill it. */}
           <div aria-hidden="true" className="absolute -left-[9999px] h-0 w-0 overflow-hidden">

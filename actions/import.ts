@@ -60,7 +60,8 @@ export async function importStudents(formData: FormData): Promise<ActionResult<I
     }
 
     const db = await getUserDb();
-    let parsed = parseStudents(sheet);
+    const units = await db.select("prayer_units", { where: [["active", "eq", true]] });
+    let parsed = parseStudents(sheet, units);
     if (parsed.students.length) {
       const dobs = [...new Set(parsed.students.map((s) => s.data.dob))];
       const same = await db.select("students", { where: [["dob", "in", dobs]] });
@@ -91,7 +92,7 @@ export async function importMarks(formData: FormData): Promise<ActionResult<Impo
     if (mode === "check" || !canSave(parsed.report)) return finish(parsed.report, mode, "student's marks are", "students' marks are");
 
     const db = await getUserDb();
-    const rows = await db.upsert("marks", parsed.entries.map((e) => ({ ...e, exam_id: exam.id, entered_by: user.id })));
+    const rows = await db.upsert("marks", parsed.entries.map((e) => ({ ...e, is_absent: false, exam_id: exam.id, entered_by: user.id })));
     revalidatePath("/teacher/marks");
     revalidatePath("/admin/exams");
     revalidatePath("/admin/report-cards");

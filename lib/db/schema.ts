@@ -3,8 +3,8 @@
  * and every value is validated against its kind (see values.ts). A trailing "?" means nullable.
  */
 import type {
-  AcademicYearRow, ActivityRow, AttendanceRow, CertificateRow, ClassRow, ClassTeacherRow, ExamRow, MarkRow,
-  NumberCounterRow, ProfileRow, RegistrationAttemptRow, RegistrationRow, SchoolSettingsRow, StudentRow, SubjectRow,
+  AcademicYearRow, ActivityRow, AttendanceRow, CertificateRow, ClassRow, ClassTeacherRow, ExamAttendanceRow, ExamRow, MarkRow,
+  NumberCounterRow, PrayerUnitRow, ProfileRow, RegistrationAttemptRow, RegistrationRow, SchoolSettingsRow, StudentRow, SubjectRow,
 } from "@/lib/db/types";
 
 export type Rows = {
@@ -23,6 +23,8 @@ export type Rows = {
   certificates: CertificateRow;
   school_settings: SchoolSettingsRow;
   number_counters: NumberCounterRow;
+  prayer_units: PrayerUnitRow;
+  exam_attendance: ExamAttendanceRow;
 };
 export type TableName = keyof Rows;
 
@@ -31,10 +33,10 @@ export type Kind = Base | `${Base}?` | readonly string[];
 
 const personal = {
   full_name: "text", full_name_ml: "text?", dob: "date", gender: ["male", "female"],
-  father_name: "text?", mother_name: "text?", guardian_phone: "text", address: "text?",
-  father_phone: "text?", email: "text?",
+  father_name: "text", mother_name: "text?", guardian_phone: "text", address: "text?",
+  father_phone: "text", email: "text?",
   baptised: "bool", school_class: "text", school_name: "text?",
-  prayer_group: "text?", baptism_name: "text?",
+  prayer_group: "text?", prayer_unit_id: "uuid", baptism_name: "text?",
 } as const;
 
 export const COLUMNS: { [T in TableName]: { readonly [C in keyof Rows[T]]-?: Kind } } = {
@@ -46,7 +48,7 @@ export const COLUMNS: { [T in TableName]: { readonly [C in keyof Rows[T]]-?: Kin
   class_teachers: { class_id: "uuid", teacher_id: "uuid" },
   students: {
     id: "uuid", admission_no: "text", ...personal, photo_url: "text?",
-    status: ["active", "inactive", "passed_out"], class_id: "uuid?", created_at: "time",
+    status: ["active", "inactive", "passed_out"], inactive_reason: "text?", class_id: "uuid?", created_at: "time",
   },
   registrations: {
     id: "uuid", ...personal, status: ["pending", "approved", "rejected"], submitted_at: "time",
@@ -56,11 +58,16 @@ export const COLUMNS: { [T in TableName]: { readonly [C in keyof Rows[T]]-?: Kin
   subjects: { id: "uuid", name: "text", max_marks: "number", sort_order: "int" },
   exams: { id: "uuid", name: "text", class_id: "uuid", academic_year_id: "uuid", exam_date: "date?", created_at: "time" },
   marks: {
-    id: "uuid", exam_id: "uuid", student_id: "uuid", subject_id: "uuid", marks_obtained: "number",
+    id: "uuid", exam_id: "uuid", student_id: "uuid", subject_id: "uuid", marks_obtained: "number", is_absent: "bool",
     remarks: "text?", entered_by: "uuid?", updated_at: "time",
   },
   attendance: {
-    id: "uuid", student_id: "uuid", class_id: "uuid", date: "date", status: ["present", "absent", "late"], marked_by: "uuid?",
+    id: "uuid", student_id: "uuid", class_id: "uuid", date: "date", status: ["present", "absent", "late"],
+    remark: "text?", marked_by: "uuid?", updated_at: "time",
+  },
+  exam_attendance: {
+    id: "uuid", exam_id: "uuid", student_id: "uuid", status: ["present", "absent"], remark: "text?",
+    marked_by: "uuid?", updated_at: "time",
   },
   activities: {
     id: "uuid", class_id: "uuid", student_id: "uuid?", type: ["competition", "memory_verse", "event", "note"],
@@ -79,17 +86,19 @@ export const COLUMNS: { [T in TableName]: { readonly [C in keyof Rows[T]]-?: Kin
     signature_url: "text?", certificate_wording: "json", nav_icons: "json?", updated_at: "time",
   },
   number_counters: { kind: ["admission", "certificate"], year: "int", last_value: "int" },
+  prayer_units: { id: "uuid", name: "text", active: "bool", created_at: "time" },
 };
 
 export const PRIMARY_KEY: Record<TableName, readonly string[]> = {
   profiles: ["id"], academic_years: ["id"], classes: ["id"], class_teachers: ["class_id", "teacher_id"],
   students: ["id"], registrations: ["id"], registration_attempts: ["id"], subjects: ["id"], exams: ["id"],
   marks: ["id"], attendance: ["id"], activities: ["id"], certificates: ["id"], school_settings: ["id"],
-  number_counters: ["kind", "year"],
+  number_counters: ["kind", "year"], prayer_units: ["id"], exam_attendance: ["id"],
 };
 
 /** The only tables that accept upsert, with their conflict key. */
 export const UPSERT_KEY = {
   attendance: ["student_id", "date"],
   marks: ["exam_id", "student_id", "subject_id"],
+  exam_attendance: ["exam_id", "student_id"],
 } as const;

@@ -19,11 +19,25 @@ export function formatDate(value: string | null | undefined): string {
   }).format(new Date(value));
 }
 
-/** Whole years between dob and `on` (both YYYY-MM-DD). */
-export function ageOn(dob: string, on: string = todayISO()): number {
+/**
+ * Completed years and months between dob and `on` (both YYYY-MM-DD). Never stored: always
+ * derived, the same way as the v_student_age view (MySQL TIMESTAMPDIFF). A 29 February
+ * birthday counts as reached on 1 March in other years.
+ */
+export function ageParts(dob: string, on: string = todayISO()): { years: number; months: number } {
   const [by, bm, bd] = dob.split("-").map(Number);
   const [y, m, d] = on.split("-").map(Number);
-  let age = y - by;
-  if (m < bm || (m === bm && d < bd)) age--;
-  return age;
+  const total = Math.max(0, (y - by) * 12 + (m - bm) - (d < bd ? 1 : 0));
+  return { years: Math.floor(total / 12), months: total % 12 };
+}
+
+/** Whole years between dob and `on` (both YYYY-MM-DD). */
+export function ageOn(dob: string, on: string = todayISO()): number {
+  return ageParts(dob, on).years;
+}
+
+/** "9 y 4 m", or "9" when compact. */
+export function formatAge(dob: string, on: string = todayISO(), compact = false): string {
+  const { years, months } = ageParts(dob, on);
+  return compact ? String(years) : `${years} y ${months} m`;
 }

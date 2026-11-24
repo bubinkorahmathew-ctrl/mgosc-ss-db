@@ -6,13 +6,16 @@ import { EmptyState, PageHeader } from "@/components/page-header";
 import { UrlSelect } from "@/components/form/url-select";
 import { ClassSwitcher } from "@/components/teacher/class-switcher";
 import { ResultsView } from "@/components/results/results-view";
-import { ActivitiesReport, AttendanceReport, ReportTabs, StudentsReport } from "@/components/reports/reports";
+import {
+  ActivitiesReport, AttendanceReport, ExamAttendanceReportView, ReportTabs, StudentsReport,
+} from "@/components/reports/reports";
 
 export const metadata: Metadata = { title: "Reports" };
 
 const TABS = [
   { id: "results", label: "Exam results" },
   { id: "attendance", label: "Attendance" },
+  { id: "exam-attendance", label: "Exam attendance" },
   { id: "students", label: "Students & ages" },
   { id: "activities", label: "Activities" },
 ];
@@ -45,6 +48,8 @@ export default async function TeacherReportsPage({ searchParams }: PageProps<"/t
     );
   } else if (tab === "attendance") {
     body = <AttendanceReport sp={{ ...sp, class: typeof sp.class === "string" ? sp.class : selected.id }} classes={opts} />;
+  } else if (tab === "exam-attendance") {
+    body = <ExamAttendanceReportView sp={{ ...sp, class: typeof sp.class === "string" ? sp.class : selected.id }} classes={opts} />;
   } else if (tab === "students") {
     body = <StudentsReport sp={sp} classes={opts} allowed={allowed} />;
   } else {

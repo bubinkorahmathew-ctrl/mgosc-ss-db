@@ -27,6 +27,12 @@ export const phone = z.string({ error: "Phone number is required." })
   .transform((v) => v.replace(/[\s-]/g, ""))
   .pipe(z.string().regex(/^\+?\d{10,15}$/, "Enter a valid phone number (10 digits)."));
 
+/** Required mobile, any country: optional +, 8 to 15 digits. Spaces and dashes are removed. */
+export const mobile = (label: string) => z.string({ error: `${label} is required.` })
+  .transform((v) => v.replace(/[\s-]/g, ""))
+  .pipe(z.string().min(1, `${label} is required.`)
+    .regex(/^\+?\d{8,15}$/, `Enter a valid ${label.toLowerCase()}: 8 to 15 digits, with an optional + country code.`));
+
 export const optionalPhone = z.string().optional().nullable()
   .transform((v) => (v ? v.replace(/[\s-]/g, "") : null))
   .pipe(z.string().regex(/^\+?\d{10,15}$/, "Enter a valid phone number (10 digits).").nullable());
@@ -43,8 +49,12 @@ export const optionalPassYear = z.union([z.number(), z.string(), z.null()]).opti
     .refine((y) => y <= Number(todayISO().slice(0, 4)), "The year cannot be in the future.")
     .nullable());
 
+/** A real calendar date: Date.parse alone would accept 2026-02-30. */
 export const isoDate = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, "Enter a valid date.")
-  .refine((s) => !Number.isNaN(Date.parse(s)), "Enter a valid date.");
+  .refine((s) => {
+    const d = new Date(`${s}T00:00:00Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+  }, "Enter a valid date.");
 
 export const dob = isoDate
   .refine((s) => s <= todayISO(), "Date of birth cannot be in the future.")
@@ -65,15 +75,16 @@ export const personalFields = z.object({
   full_name: requiredText("Child's name"),
   dob,
   gender: genderEnum,
-  father_name: optionalText("Father's name", 120),
+  father_name: requiredText("Father's name", 120),
   mother_name: optionalText("Mother's name", 120),
-  father_phone: optionalPhone,
+  father_phone: mobile("Father's mobile number"),
   guardian_phone: phone,
   email: optionalEmail,
   address: optionalText("Address", 500),
   school_class: schoolClass,
   school_name: optionalText("School name", 160),
-  prayer_group: optionalText("Prayer group name", 120),
+  prayer_unit_id: z.string({ error: "Select the prayer unit." }).min(1, "Select the prayer unit.")
+    .pipe(z.guid("Select the prayer unit.")),
   baptism_name: optionalText("Baptism name", 120),
 });
 export type PersonalFields = z.output<typeof personalFields>;

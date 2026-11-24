@@ -1,6 +1,9 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { Loader2 } from "lucide-react";
 import { Banner } from "@/components/brand";
+import { getPrayerUnits } from "@/lib/data/students";
 import { RegistrationForm } from "./registration-form";
 
 export const metadata: Metadata = { title: "Register a student" };
@@ -14,7 +17,17 @@ export default function RegisterPage() {
         Fill in your child&apos;s details. The headmaster will review the registration and assign a class.
         Fields marked <span className="text-destructive">*</span> are required.
       </p>
-      <div className="mt-6"><RegistrationForm /></div>
+      <div className="mt-6">
+        <Suspense fallback={<p className="flex items-center gap-2 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Loading the form…</p>}>
+          <Form />
+        </Suspense>
+      </div>
     </main>
   );
+}
+
+/** The prayer units come from the database, so the form waits for them. */
+async function Form() {
+  const units = (await getPrayerUnits()).filter((u) => u.active);
+  return <RegistrationForm prayerUnits={units.map(({ id, name }) => ({ id, name }))} />;
 }

@@ -61,11 +61,19 @@ export function ResultsView({ data }: { data: ExamResults }) {
                       <div className="font-medium">{r.name}</div>
                       <div className="text-xs text-muted-foreground">{r.admissionNo}</div>
                     </td>
-                    {subjects.map((s) => (
-                      <td key={s.id} className="px-2 py-2 text-right tabular-nums">{r.marks[s.id] ?? <span className="text-muted-foreground">-</span>}</td>
-                    ))}
-                    <td className="px-3 py-2 text-right font-medium tabular-nums">{r.subjectsEntered ? `${r.total}/${r.max}` : "-"}</td>
-                    <td className="px-3 py-2 text-right tabular-nums">{formatPercent(r.percentage)}</td>
+                    {r.examAbsent ? (
+                      <td colSpan={subjects.length + 2} className="px-3 py-2 text-center font-medium text-red-700">Absent for the exam</td>
+                    ) : (
+                      <>
+                        {subjects.map((s) => (
+                          <td key={s.id} className={`px-2 py-2 text-right tabular-nums ${r.marks[s.id] === "AB" ? "font-medium text-red-700" : ""}`}>
+                            {r.marks[s.id] ?? <span className="text-muted-foreground">-</span>}
+                          </td>
+                        ))}
+                        <td className="px-3 py-2 text-right font-medium tabular-nums">{r.subjectsEntered ? `${r.total}/${r.max}` : "-"}</td>
+                        <td className="px-3 py-2 text-right tabular-nums">{formatPercent(r.percentage)}</td>
+                      </>
+                    )}
                     <td className="px-3 py-2 text-right tabular-nums">{a ? percent(a.present + a.late, a.days, 0) : "-"}</td>
                     <td className="px-2 py-1">
                       <Button variant="ghost" size="sm" aria-label={`Report card for ${r.name}`}
@@ -81,7 +89,8 @@ export function ResultsView({ data }: { data: ExamResults }) {
         </div>
       )}
       <p className="text-xs text-muted-foreground">
-        Percentage is over the subjects that have marks. Students with equal percentages share a rank.
+        Percentage is over the subjects that have marks; AB (a missed subject) counts as 0. Students absent for the
+        exam get no rank. Students with equal percentages share a rank.
       </p>
     </div>
   );

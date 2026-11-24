@@ -2,6 +2,8 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { createClient } from "@/lib/db/server";
 import { getClassOptions } from "@/lib/data/classes";
+import { prayerUnitOptions } from "@/lib/data/students";
+import { FATHER_NAME_PLACEHOLDER, NOT_ASSIGNED_PRAYER_UNIT } from "@/lib/config";
 import { PageHeader } from "@/components/page-header";
 import { StudentForm } from "@/components/students/student-form";
 
@@ -16,18 +18,22 @@ export default async function EditStudentPage({ params }: PageProps<"/admin/stud
     getClassOptions(),
   ]);
   if (!s) notFound();
+  const prayerUnits = await prayerUnitOptions(s.prayer_unit_id);
+  // placeholders written when the fields became required are left blank, so they get filled in
+  const real = (v: string, placeholder: string) => (v === placeholder ? "" : v);
 
   return (
     <>
       <PageHeader title={`Edit ${s.full_name}`} description={`Admission no ${s.admission_no}`} />
-      <StudentForm
+      <StudentForm prayerUnits={prayerUnits}
         classes={classes.map((c) => ({ id: c.id, label: c.isCurrent ? c.label : `${c.label} (${c.yearName})` }))}
         student={{
           id: s.id, full_name: s.full_name, dob: s.dob, gender: s.gender,
-          father_name: s.father_name ?? "", mother_name: s.mother_name ?? "", guardian_phone: s.guardian_phone,
-          father_phone: s.father_phone ?? "", email: s.email ?? "",
+          father_name: real(s.father_name, FATHER_NAME_PLACEHOLDER), mother_name: s.mother_name ?? "",
+          guardian_phone: s.guardian_phone, father_phone: s.father_phone, email: s.email ?? "",
           address: s.address ?? "", baptism_name: s.baptism_name ?? "", school_class: s.school_class as never,
-          school_name: s.school_name ?? "", prayer_group: s.prayer_group ?? "", class_id: s.class_id ?? "", status: s.status,
+          school_name: s.school_name ?? "", prayer_unit_id: real(s.prayer_unit_id, NOT_ASSIGNED_PRAYER_UNIT),
+          class_id: s.class_id ?? "", status: s.status,
         }} />
     </>
   );

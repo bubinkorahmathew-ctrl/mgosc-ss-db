@@ -1,7 +1,7 @@
 import { z } from "zod";
-import { SCHOOL_CLASSES } from "@/lib/config";
 import { todayISO } from "@/lib/dates";
 import { isoDate, uuid } from "./common";
+import { studentFiltersSchema, type StudentFilters } from "./student";
 
 type SP = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) || undefined;
@@ -9,24 +9,24 @@ const ok = <T>(schema: z.ZodType<T>, v: unknown): T | undefined => {
   const r = schema.safeParse(v);
   return r.success ? r.data : undefined;
 };
-const age = z.coerce.number().int().min(0).max(100);
-
-export type StudentReportFilters = {
-  class_id?: string; school_class?: string; gender?: "male" | "female";
+export type StudentReportFilters = Omit<StudentFilters, "class_id" | "status" | "as_of" | "page"> & {
+  class_id?: string;
   status: "active" | "inactive" | "passed_out" | "all";
-  age_min?: number; age_max?: number; as_of: string;
+  as_of: string;
 };
 
-/** Lenient parsing of report filters from the URL: invalid values are simply ignored. */
+/**
+ * The Students page's filters, read leniently (invalid values are ignored). The report names
+ * the class `class`; `class_id` is accepted too.
+ */
 export function parseStudentReport(sp: SP): StudentReportFilters {
+  const f: Partial<StudentFilters> = studentFiltersSchema.parse({ ...sp, class_id: one(sp.class) ?? one(sp.class_id) });
+  delete f.page;
   return {
-    class_id: ok(uuid, one(sp.class)),
-    school_class: ok(z.enum(SCHOOL_CLASSES), one(sp.school_class)),
-    gender: ok(z.enum(["male", "female"]), one(sp.gender)),
-    status: ok(z.enum(["active", "inactive", "passed_out", "all"]), one(sp.status)) ?? "active",
-    age_min: ok(age, one(sp.age_min)),
-    age_max: ok(age, one(sp.age_max)),
-    as_of: ok(isoDate, one(sp.as_of)) ?? todayISO(),
+    ...f,
+    class_id: f.class_id === "none" ? undefined : f.class_id,
+    status: f.status ?? "active",
+    as_of: f.as_of ?? todayISO(),
   };
 }
 

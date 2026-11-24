@@ -4,17 +4,32 @@ import { isoDate, optionalText, requiredText, uuid } from "./common";
 
 export const attendanceStatusEnum = z.enum(["present", "absent", "late"]);
 
+const remark = optionalText("Remark", 200);
+
 export const saveAttendanceSchema = z.object({
   class_id: uuid,
   date: isoDate.refine((d) => d <= todayISO(), "Attendance cannot be marked for a future date."),
-  entries: z.array(z.object({ student_id: uuid, status: attendanceStatusEnum })).min(1, "No students to save.").max(200),
+  entries: z.array(z.object({ student_id: uuid, status: attendanceStatusEnum, remark }))
+    .min(1, "No students to save.").max(200),
 }).refine((v) => new Set(v.entries.map((e) => e.student_id)).size === v.entries.length, "Duplicate student in list.");
 export type SaveAttendanceInput = z.input<typeof saveAttendanceSchema>;
 
-/** marks: number between 0 and 1000 with at most 2 decimals, or null (= not entered) */
-const markValue = z.union([z.number(), z.null()])
-  .refine((v) => v === null || (Number.isFinite(v) && v >= 0 && v <= 1000 && Math.round(v * 100) === v * 100),
-    "Enter a valid mark.");
+export const examAttendanceStatusEnum = z.enum(["present", "absent"]);
+
+export const saveExamAttendanceSchema = z.object({
+  exam_id: uuid,
+  entries: z.array(z.object({ student_id: uuid, status: examAttendanceStatusEnum, remark }))
+    .min(1, "No students to save.").max(200),
+}).refine((v) => new Set(v.entries.map((e) => e.student_id)).size === v.entries.length, "Duplicate student in list.");
+
+/** A missed subject: shown and typed as AB. */
+export const ABSENT_MARK = "AB";
+
+/** marks: number between 0 and 1000 with at most 2 decimals, "AB" (missed the subject), or null (= not entered) */
+const markValue = z.union([z.number(), z.literal(ABSENT_MARK), z.null()])
+  .refine((v) => v === null || v === ABSENT_MARK
+    || (Number.isFinite(v) && v >= 0 && v <= 1000 && Math.round(v * 100) === v * 100),
+  "Enter a valid mark.");
 
 export const saveMarksSchema = z.object({
   exam_id: uuid,

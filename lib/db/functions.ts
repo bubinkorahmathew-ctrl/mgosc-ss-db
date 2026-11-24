@@ -8,7 +8,7 @@ import { toId, type Row } from "./values";
 
 const COPIED_FROM_REGISTRATION = [
   "full_name", "full_name_ml", "dob", "gender", "father_name", "mother_name",
-  "guardian_phone", "address", "baptised", "school_class", "school_name", "prayer_group", "baptism_name", "father_phone", "email",
+  "guardian_phone", "address", "baptised", "school_class", "school_name", "prayer_group", "prayer_unit_id", "baptism_name", "father_phone", "email",
 ] as const;
 
 /** The database functions the app called through dbc.rpc(). */

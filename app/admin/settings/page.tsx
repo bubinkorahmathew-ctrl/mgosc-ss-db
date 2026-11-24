@@ -7,12 +7,14 @@ import { ADMIN_NAV, styleNav, TEACHER_NAV, type NavItem } from "@/components/lay
 import { PageHeader } from "@/components/page-header";
 import { SettingsForm, SignatureUpload } from "./settings-form";
 import { MenuIconsForm } from "./menu-icons-form";
+import { PrayerUnitsForm } from "./prayer-units-form";
+import { getPrayerUnits, prayerUnitUsage } from "@/lib/data/students";
 
 export const metadata: Metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
   if (!(await requireRole("headmaster")).superAdmin) redirect("/admin");
-  const s = await getSettings();
+  const [s, units, usage] = await Promise.all([getSettings(), getPrayerUnits(), prayerUnitUsage()]);
   const style = readNavStyle(s.nav_icons);
   const sections = (nav: NavItem[]) => styleNav(nav, style).map((n, i) => ({
     href: n.href, label: n.label, icon: n.icon, color: n.color, defaultIcon: nav[i].icon, defaultColor: nav[i].color,
@@ -26,6 +28,7 @@ export default async function SettingsPage() {
           school_name: s.school_name, address: s.address ?? "", headmaster_name: s.headmaster_name ?? "",
           certificate_wording: s.certificate_wording,
         }} />
+        <PrayerUnitsForm units={units.map((u) => ({ ...u, used: usage.get(u.id) ?? 0 }))} />
         <MenuIconsForm groups={[
           { title: "Admin menu", sections: sections(ADMIN_NAV) },
           { title: "Teacher menu", sections: sections(TEACHER_NAV) },

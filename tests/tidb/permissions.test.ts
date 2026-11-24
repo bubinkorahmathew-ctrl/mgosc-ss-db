@@ -3,7 +3,7 @@
  * As in those files, cases within a block build on each other.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createTiDbTest, IDS, type Sandbox, type TiDbTest } from "./harness";
+import { createTiDbTest, daysAgo, IDS, PRAYER_UNIT, type Sandbox, type TiDbTest } from "./harness";
 
 let t: TiDbTest;
 beforeAll(async () => {
@@ -28,7 +28,10 @@ const t1 = () => s.as(IDS.teacher1);
 const t2 = () => s.as(IDS.teacher2);
 
 const child = (full_name: string, guardian_phone = "9000000099") =>
-  ({ full_name, dob: "2020-01-01", gender: "male" as const, guardian_phone, school_class: "LKG" });
+  ({
+    full_name, dob: "2020-01-01", gender: "male" as const, guardian_phone, school_class: "LKG",
+    prayer_unit_id: PRAYER_UNIT, father_name: "Father", father_phone: guardian_phone,
+  });
 const regId = async (name: string) =>
   (await s.raw<{ id: string }>("select id from registrations where full_name = ?", [name]))[0].id;
 const ANY = [["full_name", "ilike", "%"]] as const;
@@ -156,7 +159,7 @@ describe("phase 3", () => {
   freshData();
 
   const attendance = (who: string, student_id: string, class_id: string, status: "present" | "late" = "present") =>
-    s.as(who).upsert("attendance", { student_id, class_id, date: "2026-11-15", status });
+    s.as(who).upsert("attendance", { student_id, class_id, date: daysAgo(2), status });
   const mark = (who: string, exam_id: string, student_id: string, subject_id: string, marks_obtained: number) =>
     s.as(who).upsert("marks", { exam_id, student_id, subject_id, marks_obtained });
   const activity = (who: string, class_id: string, student_id: string | null) =>
@@ -178,7 +181,7 @@ describe("phase 3", () => {
   });
   it("teacher cannot update or delete another class's attendance", async () => {
     expect(await t1().update("attendance", { status: "absent" }, [["class_id", "eq", IDS.class2]])).toEqual([]);
-    expect(await t1().delete("attendance", [["date", "eq", "2026-11-15"]])).toEqual([]);
+    expect(await t1().delete("attendance", [["date", "eq", daysAgo(2)]])).toEqual([]);
   });
   it("teacher can enter and update marks for own class", async () => {
     await mark(IDS.teacher1, IDS.examC1, IDS.studentC1, IDS.subjectOT, 42);

@@ -17,6 +17,11 @@ export function toActionError(e: unknown): { ok: false; error: string; fieldErro
   if (e instanceof AuthError) return { ok: false, error: e.message };
   const msg = (e as { message?: string })?.message ?? "";
   if (/duplicate key/i.test(msg)) return { ok: false, error: "That record already exists." };
+  if (/choose a prayer unit/i.test(msg)) {
+    const error = "Choose a prayer unit from the list.";
+    return { ok: false, error, fieldErrors: { prayer_unit_id: [error] } };
+  }
+  if (/foreign key/i.test(msg)) return { ok: false, error: "This is in use, or something it links to no longer exists." };
   if (/row-level security|not allowed|permission denied/i.test(msg))
     return { ok: false, error: "You are not allowed to do that." };
   console.error(e);

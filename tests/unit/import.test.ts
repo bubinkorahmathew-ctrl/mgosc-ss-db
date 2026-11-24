@@ -41,14 +41,14 @@ describe("readSheet", () => {
   });
 
   it("refuses more than 500 rows", async () => {
-    const file = await fill(await studentTemplate(), (ws) => {
+    const file = await fill(await studentTemplate([]), (ws) => {
       for (let r = 2; r <= 502; r++) ws.getCell(r, 1).value = `Child ${r}`;
     });
     await expect(readSheet(file)).rejects.toThrow("at most 500");
   });
 
   it("skips empty rows and reads formulas by their result", async () => {
-    const file = await fill(await studentTemplate(), (ws) => {
+    const file = await fill(await studentTemplate([]), (ws) => {
       ws.getCell(2, 1).value = "A";
       ws.getCell(5, 1).value = { formula: "\"B\"", result: "B" } as ExcelJS.CellFormulaValue;
     });
@@ -58,37 +58,46 @@ describe("readSheet", () => {
 });
 
 describe("students upload", () => {
+  const UNITS = [{ id: "70000000-0000-4000-8000-000000000001", name: "St. George" }];
   const row = (ws: ExcelJS.Worksheet, r: number, values: (string | Date | number | null)[]) =>
     values.forEach((v, i) => { ws.getCell(r, i + 1).value = v; });
 
+  it("lists the prayer units in the template", async () => {
+    const wb = new ExcelJS.Workbook();
+    await wb.xlsx.load(await studentTemplate(["St. George", "St. Thomas"]) as unknown as ExcelJS.Buffer);
+    const units = wb.getWorksheet("Prayer units")!;
+    expect([units.getCell(1, 1).value, units.getCell(2, 1).value]).toEqual(["St. George", "St. Thomas"]);
+  });
+
   it("accepts a correctly filled template and reports each problem with its row", async () => {
-    const file = await fill(await studentTemplate(), (ws) => {
+    // Name, DOB, Gender, Phone, School class, School name, Prayer unit, Father, Mother, Father's mobile, Email, Address, Baptism name
+    const file = await fill(await studentTemplate(["St. George"]), (ws) => {
       row(ws, 2, ["Anna  Mathew", "05/03/2015", "Female", "98470 12345", "Grade 3", "St. Mary's", "St. George", "Mathew", "Mary", "98470 55555", " Family@Example.COM ", "Thrissur", "  Mariam "]);
-      row(ws, 3, ["Joel", new Date(Date.UTC(2016, 0, 9)), "m", 9847012346, "4", null, null, null, null, null, null]);
-      row(ws, 4, ["Bad Date", "31/02/2015", "Male", "9847012347", "Grade 1"]);
-      row(ws, 5, ["No Phone", "01/01/2014", "Boy", null, "Std 9", null, null, null, null, "123", "not-an-email", null, "<b>x</b>"]);
-      row(ws, 6, ["anna mathew", "5/3/2015", "F", "9847012348", "LKG"]);
-      row(ws, 7, [null, "01/01/2014", "Other", "12", "Grade 13"]);
+      row(ws, 3, ["Joel", new Date(Date.UTC(2016, 0, 9)), "m", 9847012346, "4", null, "st.  george", "Varghese", null, "+966 50 123 4567", null, null, null]);
+      row(ws, 4, ["Bad Date", "31/02/2015", "Male", "9847012347", "Grade 1", null, "St. George", "Father", null, "9847012347"]);
+      row(ws, 5, ["No Phone", "01/01/2014", "Boy", null, "Std 9", null, "St. George", "Father", null, "123", "not-an-email", null, "<b>x</b>"]);
+      row(ws, 6, ["anna mathew", "5/3/2015", "F", "9847012348", "LKG", null, "St. George", "Mathew", null, "9847012348"]);
+      row(ws, 7, [null, "01/01/2014", "Other", "12", "Grade 13", null, "Nowhere"]);
     });
-    const { report, students } = parseStudents(await readSheet(file));
+    const { report, students } = parseStudents(await readSheet(file), UNITS);
 
     expect(report.fileErrors).toEqual([]);
     expect(students.map((s) => s.data.full_name)).toEqual(["Anna Mathew", "Joel"]);
     expect(students[0].data).toMatchObject({
       dob: "2015-03-05", gender: "female", guardian_phone: "9847012345", school_class: "Grade 3",
-      prayer_group: "St. George", baptism_name: "Mariam", school_name: "St. Mary's",
+      prayer_unit_id: UNITS[0].id, father_name: "Mathew", baptism_name: "Mariam", school_name: "St. Mary's",
       father_phone: "9847055555", email: "family@example.com", address: "Thrissur",
     });
     expect(students[1].data).toMatchObject({
       dob: "2016-01-09", gender: "male", guardian_phone: "9847012346", school_class: "Grade 4", baptism_name: null,
-      father_phone: null, email: null,
+      prayer_unit_id: UNITS[0].id, father_name: "Varghese", father_phone: "+966501234567", email: null,
     });
     expect(students[0].data).not.toHaveProperty("baptised");
 
     const errors = Object.fromEntries(report.rows.map((r) => [r.row, r.errors]));
     expect(errors[4]).toEqual(["Date of birth \"31/02/2015\" is not a valid date. Use DD/MM/YYYY."]);
     expect(errors[5]).toEqual([
-      "Enter a valid phone number (10 digits).", // father's mobile
+      "Enter a valid father's mobile number: 8 to 15 digits, with an optional + country code.",
       "Phone number is required.",
       "Enter a valid email address.",
       "Baptism name contains characters that are not allowed.",
@@ -97,18 +106,21 @@ describe("students upload", () => {
     expect(errors[7]).toEqual([
       "Gender must be Male or Female.",
       "School class \"Grade 13\" is not valid. Use LKG, UKG or Grade 1 to Grade 12.",
+      "Prayer unit \"Nowhere\" is not in the list. Use one from the template, or ask an admin to add it in Settings.",
       "Child's name is required.",
+      "Father's name is required.",
+      "Father's mobile number is required.",
       "Enter a valid phone number (10 digits).",
     ]);
     expect(report).toMatchObject({ ready: 2, problems: 4 });
   });
 
   it("flags children already saved", async () => {
-    const file = await fill(await studentTemplate(), (ws) => {
-      row(ws, 2, ["Anna Mathew", "05/03/2015", "Female", "9847012345", "Grade 3"]);
-      row(ws, 3, ["Joel", "09/01/2016", "Male", "9847012346", "Grade 4"]);
+    const file = await fill(await studentTemplate(["St. George"]), (ws) => {
+      row(ws, 2, ["Anna Mathew", "05/03/2015", "Female", "9847012345", "Grade 3", null, "St. George", "Mathew", null, "9847012345"]);
+      row(ws, 3, ["Joel", "09/01/2016", "Male", "9847012346", "Grade 4", null, "St. George", "Varghese", null, "9847012346"]);
     });
-    const parsed = markExistingStudents(parseStudents(await readSheet(file)),
+    const parsed = markExistingStudents(parseStudents(await readSheet(file), UNITS),
       new Map([[studentKey("ANNA MATHEW", "2015-03-05"), "SS-2025-0007"]]));
     expect(parsed.report.rows[0].errors).toEqual(["Already saved as SS-2025-0007."]);
     expect(parsed.students.map((s) => s.data.full_name)).toEqual(["Joel"]);
@@ -120,10 +132,12 @@ describe("students upload", () => {
     const ws = wb.addWorksheet("x");
     ws.addRow(["Name", "Birthday", "Gender"]);
     ws.addRow(["A", "01/01/2015", "Male"]);
-    const { report } = parseStudents(await readSheet(new Uint8Array(await wb.xlsx.writeBuffer())));
+    const { report } = parseStudents(await readSheet(new Uint8Array(await wb.xlsx.writeBuffer())), UNITS);
     expect(report.fileErrors).toEqual(expect.arrayContaining([
       "The column \"Date of birth\" is missing. Use the template.",
       "The column \"Phone\" is missing. Use the template.",
+      "The column \"Prayer unit\" is missing. Use the template.",
+      "The column \"Father's mobile\" is missing. Use the template.",
       "The column \"Birthday\" is not recognised. Use the template's columns.",
     ]));
     expect(report.ready).toBe(0);

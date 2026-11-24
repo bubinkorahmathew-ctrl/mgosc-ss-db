@@ -6,7 +6,11 @@ import { assertClassAccess, assertRole, AuthError } from "@/lib/auth";
 import { changePassword } from "@/lib/authn/login";
 import { requestClient, setSessionCookie } from "@/lib/authn/request";
 import { getDatabase } from "@/lib/db";
-import { activitySchema, saveAttendanceSchema, saveMarksSchema } from "@/lib/validation/teacher";
+import {
+  ABSENT_MARK, activitySchema, saveAttendanceSchema, saveExamAttendanceSchema, saveMarksSchema,
+} from "@/lib/validation/teacher";
+import { TEACHER_ATTENDANCE_DAYS } from "@/lib/config";
+import { teacherAttendanceFrom } from "@/lib/db/policies";
 import { changePasswordSchema } from "@/lib/validation/staff";
 import { z } from "zod";
 import { toActionError, type ActionResult } from "@/lib/action-result";
@@ -29,16 +33,48 @@ export async function saveAttendance(input: unknown): Promise<ActionResult<{ sav
     await assertClassAccess(user, class_id);
     await assertStudentsInClass(class_id, entries.map((e) => e.student_id));
 
+    if (user.profile.role === "teacher" && date < teacherAttendanceFrom()) {
+      throw new AuthError(`Teachers can change attendance up to ${TEACHER_ATTENDANCE_DAYS} days back. Ask an admin for older dates.`);
+    }
+
+    // one statement, one transaction: every student of the day is saved, or none
     const dbc = await createClient();
     const { error } = await dbc.from("attendance").upsert(
-      entries.map((e) => ({ student_id: e.student_id, class_id, date, status: e.status, marked_by: user.id })),
+      entries.map((e) => ({ student_id: e.student_id, class_id, date, status: e.status, remark: e.remark, marked_by: user.id })),
       { onConflict: "student_id,date" },
     );
     if (error) throw error;
     revalidatePath("/teacher/attendance");
+    revalidatePath("/admin/attendance");
     revalidatePath("/teacher");
     revalidatePath("/admin");
     return { ok: true, data: { saved: entries.length }, message: `Attendance saved for ${entries.length} students.` };
+  } catch (e) {
+    return toActionError(e);
+  }
+}
+
+/** Who sat the exam. Absent students get no marks and no result. */
+export async function saveExamAttendance(input: unknown): Promise<ActionResult<{ saved: number }>> {
+  try {
+    const user = await assertRole("teacher", "headmaster");
+    const { exam_id, entries } = saveExamAttendanceSchema.parse(input);
+    const dbc = await createClient();
+    const { data: exam } = await dbc.from("exams").select("id, class_id").eq("id", exam_id).maybeSingle();
+    if (!exam) throw new AuthError("That exam is not available to you.");
+    await assertClassAccess(user, exam.class_id);
+    await assertStudentsInClass(exam.class_id, entries.map((e) => e.student_id));
+
+    const { error } = await dbc.from("exam_attendance").upsert(
+      entries.map((e) => ({ exam_id, student_id: e.student_id, status: e.status, remark: e.remark, marked_by: user.id })),
+      { onConflict: "exam_id,student_id" },
+    );
+    if (error) throw error;
+    revalidatePath("/teacher/marks");
+    revalidatePath("/admin/exams");
+    revalidatePath("/admin/report-cards");
+    const absent = entries.filter((e) => e.status === "absent").length;
+    return { ok: true, data: { saved: entries.length }, message: `Exam attendance saved: ${entries.length - absent} present, ${absent} absent.` };
   } catch (e) {
     return toActionError(e);
   }
@@ -67,12 +103,22 @@ export async function saveMarks(input: unknown): Promise<ActionResult<{ saved: n
       .select("id, student_id, subject_id").eq("exam_id", exam_id).in("student_id", rows.map((r) => r.student_id));
     if (eErr) throw eErr;
     const existingKey = new Map((existing ?? []).map((m) => [`${m.student_id}:${m.subject_id}`, m.id]));
+    const { data: away, error: aErr } = await dbc.from("exam_attendance")
+      .select("student_id").eq("exam_id", exam_id).eq("status", "absent");
+    if (aErr) throw aErr;
+    const absentForExam = new Set((away ?? []).map((a) => a.student_id));
 
-    const upserts: { exam_id: string; student_id: string; subject_id: string; marks_obtained: number; entered_by: string }[] = [];
+    const upserts: {
+      exam_id: string; student_id: string; subject_id: string; marks_obtained: number; is_absent: boolean; entered_by: string;
+    }[] = [];
     const toDelete: string[] = [];
     const fieldErrors: Record<string, string[]> = {};
 
     for (const row of rows) {
+      if (absentForExam.has(row.student_id) && Object.values(row.marks).some((v) => v !== null)) {
+        fieldErrors[row.student_id] = ["This student was absent for the exam. Change the exam attendance first."];
+        continue;
+      }
       for (const [subjectId, value] of Object.entries(row.marks)) {
         const subject = subjectMap.get(subjectId);
         if (!subject) { fieldErrors[`${row.student_id}:${subjectId}`] = ["Unknown subject."]; continue; }
@@ -86,11 +132,15 @@ export async function saveMarks(input: unknown): Promise<ActionResult<{ saved: n
           }
           continue;
         }
+        if (value === ABSENT_MARK) {
+          upserts.push({ exam_id, student_id: row.student_id, subject_id: subjectId, marks_obtained: 0, is_absent: true, entered_by: user.id });
+          continue;
+        }
         if (value > Number(subject.max_marks)) {
           fieldErrors[key] = [`${subject.name}: maximum is ${subject.max_marks}.`];
           continue;
         }
-        upserts.push({ exam_id, student_id: row.student_id, subject_id: subjectId, marks_obtained: value, entered_by: user.id });
+        upserts.push({ exam_id, student_id: row.student_id, subject_id: subjectId, marks_obtained: value, is_absent: false, entered_by: user.id });
       }
     }
     if (Object.keys(fieldErrors).length) {

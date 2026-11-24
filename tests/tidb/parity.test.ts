@@ -3,9 +3,10 @@
  * The same operation, by the same person, on the same rows, must end the same way on TiDB.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { teacherAttendanceFrom } from "@/lib/db/policies";
 import { COLUMNS, PRIMARY_KEY, type Rows, type TableName } from "@/lib/db/schema";
 import type { Condition } from "@/lib/db/sql";
-import { createTiDbTest, IDS, type Sandbox, type TiDbTest } from "./harness";
+import { createTiDbTest, IDS, PRAYER_UNIT, TIDB_ONLY_TABLES, type Sandbox, type TiDbTest } from "./harness";
 
 const COTEACHER = "22222222-2222-2222-2222-222222222223";
 const INACTIVE = "22222222-2222-2222-2222-222222222224";
@@ -104,7 +105,11 @@ async function onTiDb(uid: string | null, op: Op): Promise<number | "error"> {
       if (op.conflict) return (await db.upsert(op.table as "marks", op.values as Partial<Rows["marks"]>)).length;
       // anonymous inserts return no rows, so count what landed
       const before = await count();
-      await db.insert(op.table, op.values as Partial<Rows[TableName]>);
+      // fields that are required on TiDB only (the spec has no such columns)
+      const values = op.table === "students" || op.table === "registrations"
+        ? { prayer_unit_id: PRAYER_UNIT, father_name: "Father", father_phone: "9000000009", ...op.values }
+        : op.values;
+      await db.insert(op.table, values as Partial<Rows[TableName]>);
       return (await count()) - before;
     } catch (e) {
       // a programming error must not pass as "denied"
@@ -237,7 +242,8 @@ const isStricterRead = (actor: ActorName, table: TableName) =>
 describe.each(Object.keys(ACTORS) as ActorName[])("%s", (actor) => {
   const uid = ACTORS[actor];
 
-  it.each(Object.keys(COLUMNS) as TableName[])("reads the same rows of %s", async (table) => {
+  const specTables = (Object.keys(COLUMNS) as TableName[]).filter((table) => !TIDB_ONLY_TABLES.has(table));
+  it.each(specTables)("reads the same rows of %s", async (table) => {
     const keys = PRIMARY_KEY[table];
     const key = (r: object) => keys.map((k) => (r as Record<string, unknown>)[k]).join("|");
     let spec: string[] | "error";
@@ -268,10 +274,15 @@ describe.each(Object.keys(ACTORS) as ActorName[])("%s", (actor) => {
     // Deliberate changes asked for by the school:
     //   looser:   teachers add students to their own classes
     //   stricter: teachers no longer issue certificates
+    //   stricter: teachers write attendance only 14 days back (the fixture's rows are from 2026-11-08)
     const teacherIssues = actor !== "headmaster" && op.kind === "insert" && op.table === "certificates";
+    const attendanceDate = op.table !== "attendance" ? null : op.kind === "insert" ? op.values.date as string : "2026-11-08";
+    const tooOld = actor !== "headmaster" && attendanceDate !== null && attendanceDate < teacherAttendanceFrom();
+    const spec = await onPostgres(uid, op);
     const expected = name === "students: create" && (actor === "teacher1" || actor === "coteacher") ? 1
       : teacherIssues ? "error"
-      : await onPostgres(uid, op);
+      : tooOld ? (spec === "error" || op.kind === "insert" ? "error" : 0)
+      : spec;
     expect(await onTiDb(uid, op)).toBe(expected);
   });
 });

@@ -6,15 +6,19 @@
  *
  * Roles (changed at the school's request after the Postgres port):
  *   super admin  everything
- *   admin        all school work, but not settings, and no other admin's profile
- *   teacher      own classes: add students; record attendance, marks, activities.
+ *   admin        all school work, but not settings, no other admin's profile, and no deleting students
+ *   teacher      own classes: add students; record attendance (up to 14 days back), exam
+ *                attendance, marks, activities.
+ *   everyone     reads prayer_units (the public registration form lists them); admins write them.
  *                They see their classes' certificates but only admins issue them.
  *
  * Deliberately stricter than Postgres was, for deactivated accounts only: they can still read
  * their own profile (to show "account not active") but no longer reference data, and cannot
  * edit their profile.
  */
+import { TEACHER_ATTENDANCE_DAYS } from "@/lib/config";
 import type { Executor } from "./connection";
+import { todayIST } from "./time";
 import type { TableName } from "./schema";
 import type { Row } from "./values";
 
@@ -45,13 +49,18 @@ const VISIBLE: Partial<Record<TableName, string>> = {
   students: `t.class_id in (${MY_CLASSES})`,
   exams: `t.class_id in (${MY_CLASSES})`,
   marks: `t.exam_id in (select e.id from exams e where e.class_id in (${MY_CLASSES}))`,
+  exam_attendance: `t.exam_id in (select e.id from exams e where e.class_id in (${MY_CLASSES}))`,
   attendance: `t.class_id in (${MY_CLASSES})`,
   activities: `t.class_id in (${MY_CLASSES})`,
   certificates: `t.class_id in (${MY_CLASSES}) or t.student_id in (select s.id from students s where s.class_id in (${MY_CLASSES}))`,
   // registrations: headmaster only
 };
 
+/** Readable by anyone, signed in or not: the public registration form lists them. */
+const PUBLIC_TABLES: ReadonlySet<TableName> = new Set<TableName>(["prayer_units"]);
+
 export function readable(table: TableName, userId: string | null): Sql {
+  if (PUBLIC_TABLES.has(table)) return ALL;
   if (!userId || INTERNAL_TABLES.has(table)) return NONE;
   const extra = VISIBLE[table];
   const sql = extra ? `(${IS_HEADMASTER} or (${extra}))` : IS_HEADMASTER;
@@ -99,6 +108,12 @@ const inMine = (actor: Actor, classId: unknown) => typeof classId === "string" &
 const teaches = (actor: Actor, facts: Facts, studentId: unknown) =>
   inMine(actor, facts.studentClass.get(studentId as string));
 
+/** The oldest attendance date a teacher may still write (YYYY-MM-DD, India time). Admins: any date. */
+export function teacherAttendanceFrom(now: Date = new Date()): string {
+  return new Date(Date.parse(todayIST(now)) - TEACHER_ATTENDANCE_DAYS * 864e5).toISOString().slice(0, 10);
+}
+const recentEnough = (date: unknown) => typeof date === "string" && date >= teacherAttendanceFrom();
+
 /** WITH CHECK: may the caller leave this row in this state? */
 export function canWrite(op: "insert" | "update", table: TableName, row: Row, actor: Actor, facts: Facts): boolean {
   if (INTERNAL_TABLES.has(table)) return false;
@@ -122,7 +137,9 @@ export function canWrite(op: "insert" | "update", table: TableName, row: Row, ac
     case "marks":
       return inMine(actor, facts.examClass.get(row.exam_id as string)) && teaches(actor, facts, row.student_id);
     case "attendance":
-      return inMine(actor, row.class_id) && teaches(actor, facts, row.student_id);
+      return inMine(actor, row.class_id) && teaches(actor, facts, row.student_id) && recentEnough(row.date);
+    case "exam_attendance":
+      return inMine(actor, facts.examClass.get(row.exam_id as string)) && teaches(actor, facts, row.student_id);
     case "activities":
       return inMine(actor, row.class_id) && (row.student_id == null || teaches(actor, facts, row.student_id));
     default:
@@ -136,6 +153,8 @@ export function targetable(op: "update" | "delete", table: TableName, actor: Act
   if (actor.superAdmin) return ALL;
   if (actor.headmaster) {
     if (table === "school_settings") return NONE;
+    // deleting a student also deletes their marks, attendance and certificates: super admin only
+    if (table === "students" && op === "delete") return NONE;
     if (table !== "profiles") return ALL;
     return op === "delete"
       ? { sql: "t.role = 'teacher'", params: [] }
@@ -147,8 +166,10 @@ export function targetable(op: "update" | "delete", table: TableName, actor: Act
   const mine = [[...actor.classes]];
   switch (table) {
     case "marks":
+    case "exam_attendance":
       return { sql: "t.exam_id in (select e.id from exams e where e.class_id in (?))", params: mine };
     case "attendance":
+      return { sql: "t.class_id in (?) and t.date >= ?", params: [...mine, teacherAttendanceFrom()] };
     case "activities":
       return { sql: "t.class_id in (?)", params: mine };
     default:

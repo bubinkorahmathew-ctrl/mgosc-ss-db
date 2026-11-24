@@ -24,7 +24,7 @@ export function ClassSwitcher({ classes, selectedId }: {
           next.set("class", e.target.value);
           next.delete("exam");
           // remember across pages (bottom-nav links don't carry ?class=)
-          document.cookie = `ss_class=${encodeURIComponent(e.target.value)}; path=/teacher; max-age=31536000; samesite=lax`;
+          document.cookie = `ss_class=${encodeURIComponent(e.target.value)}; path=${pathname.startsWith("/admin") ? "/admin" : "/teacher"}; max-age=31536000; samesite=lax`;
           start(() => router.replace(`${pathname}?${next.toString()}`, { scroll: false }));
         }}>
         {classes.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}

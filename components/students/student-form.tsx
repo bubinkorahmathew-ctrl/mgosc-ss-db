@@ -9,7 +9,7 @@ import { Loader2 } from "lucide-react";
 import type { z } from "zod";
 import { createStudent, updateStudent } from "@/actions/students";
 import { studentSchema } from "@/lib/validation/student";
-import { PersonalFieldsFieldset } from "@/components/form/personal-fields";
+import { PersonalFieldsFieldset, type PrayerUnitOption } from "@/components/form/personal-fields";
 import { Field, NativeSelect } from "@/components/form/field";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -17,11 +17,12 @@ import { Card, CardContent } from "@/components/ui/card";
 type In = z.input<typeof studentSchema>;
 type Out = z.output<typeof studentSchema>;
 
-export function StudentForm({ student, classes, teacherClassId }: {
+export function StudentForm({ student, classes, teacherClassId, prayerUnits }: {
   student?: In & { id: string };
   /** set on the teacher's form: own classes only, always active */
   teacherClassId?: string;
   classes: { id: string; label: string }[];
+  prayerUnits: PrayerUnitOption[];
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -53,7 +54,8 @@ export function StudentForm({ student, classes, teacherClassId }: {
     <Card>
       <CardContent>
         <form onSubmit={onSubmit} noValidate className="space-y-6">
-          <PersonalFieldsFieldset register={form.register} errors={errors} serverErrors={serverErrors} />
+          <PersonalFieldsFieldset register={form.register} errors={errors} serverErrors={serverErrors}
+            prayerUnits={prayerUnits} />
           <div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
             <Field id="class_id" label="Sunday School class" error={errors.class_id?.message}>
               <NativeSelect id="class_id" {...form.register("class_id")}>

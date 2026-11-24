@@ -5,12 +5,12 @@ import { createClient } from "@/lib/db/server";
 export async function getStudentProfile(id: string) {
   const dbc = await createClient();
   const { data: student } = await dbc
-    .from("students").select("*, classes(id, name, section, academic_years(name))")
+    .from("students").select("*, classes(id, name, section, academic_years(name)), prayer_units(name)")
     .eq("id", id).maybeSingle();
   if (!student) return null;
 
   const [{ data: attendance }, { data: marks }, { data: activities }, { data: certificates }] = await Promise.all([
-    dbc.from("attendance").select("date, status").eq("student_id", id).order("date", { ascending: false }),
+    dbc.from("attendance").select("date, status, remark").eq("student_id", id).order("date", { ascending: false }),
     dbc.from("marks")
       .select("marks_obtained, remarks, exams(id, name, exam_date), subjects(id, name, max_marks, sort_order)")
       .eq("student_id", id),
@@ -54,7 +54,7 @@ export async function getStudentProfile(id: string) {
 
   return {
     student,
-    attendance: { ...att, totalDays, recent: (attendance ?? []).slice(0, 20) },
+    attendance: { ...att, totalDays, recent: (attendance ?? []).slice(0, 20), all: attendance ?? [] },
     examResults,
     activities: activities ?? [],
     certificates: certificates ?? [],

@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/db/server";
 import { getClassOptions } from "@/lib/data/classes";
-import { formatDate, ageOn } from "@/lib/dates";
+import { formatAge, formatDate } from "@/lib/dates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge, genderLabel } from "@/components/status-badge";
@@ -17,7 +17,7 @@ export default async function RegistrationDetail({ params }: PageProps<"/admin/r
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const dbc = await createClient();
   const [{ data: r }, classes] = await Promise.all([
-    dbc.from("registrations").select("*, reviewer:profiles!registrations_reviewed_by_fkey(full_name)")
+    dbc.from("registrations").select("*, reviewer:profiles!registrations_reviewed_by_fkey(full_name), prayer_units(name)")
       .eq("id", id).maybeSingle(),
     getClassOptions({ currentOnly: true }),
   ]);
@@ -25,14 +25,14 @@ export default async function RegistrationDetail({ params }: PageProps<"/admin/r
 
   const rows: [string, React.ReactNode][] = [
     ["Name", r.full_name],
-    ["Date of birth", `${formatDate(r.dob)} (age ${ageOn(r.dob)})`],
+    ["Date of birth", `${formatDate(r.dob)} (age ${formatAge(r.dob)})`],
     ["Gender", genderLabel(r.gender)],
     ["School class", r.school_class],
     ["School name", r.school_name || "-"],
-    ["Prayer group", r.prayer_group || "-"],
-    ["Father", r.father_name || "-"],
+    ["Prayer unit", r.prayer_units?.name ?? "-"],
+    ["Father", r.father_name],
     ["Mother", r.mother_name || "-"],
-    ["Father's mobile", r.father_phone ? <a key="f" className="text-primary underline" href={`tel:${r.father_phone}`}>{r.father_phone}</a> : "-"],
+    ["Father's mobile", <a key="f" className="text-primary underline" href={`tel:${r.father_phone}`}>{r.father_phone}</a>],
     ["Guardian phone", <a key="p" className="text-primary underline" href={`tel:${r.guardian_phone}`}>{r.guardian_phone}</a>],
     ["Email", r.email || "-"],
     ["Address", r.address || "-"],

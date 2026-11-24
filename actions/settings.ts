@@ -2,7 +2,9 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient } from "@/lib/db/server";
-import { assertSuperAdmin } from "@/lib/auth";
+import { assertRole, assertSuperAdmin } from "@/lib/auth";
+import { NOT_ASSIGNED_PRAYER_UNIT } from "@/lib/config";
+import { deletePrayerUnitSchema, prayerUnitSchema } from "@/lib/validation/prayer-units";
 import { removeSignature } from "@/lib/branding";
 import { getDatabase } from "@/lib/db";
 import { settingsSchema } from "@/lib/validation/academics";
@@ -37,6 +39,50 @@ export async function saveMenuIcons(input: unknown): Promise<ActionResult> {
     revalidatePath("/admin", "layout");
     revalidatePath("/teacher", "layout");
     return { ok: true, message: "Menu icons saved." };
+  } catch (e) {
+    return toActionError(e);
+  }
+}
+
+const PRAYER_UNIT_PAGES = ["/admin/settings", "/register", "/admin/students", "/teacher/students"];
+
+/** Add a prayer unit, or rename / switch one on or off. "Not assigned" is fixed. */
+export async function savePrayerUnit(input: unknown): Promise<ActionResult> {
+  try {
+    await assertRole("headmaster");
+    const { id, name, active } = prayerUnitSchema.parse(input);
+    if (id === NOT_ASSIGNED_PRAYER_UNIT) return { ok: false, error: "\"Not assigned\" cannot be changed." };
+    const dbc = await createClient();
+    if (id) {
+      const { data, error } = await dbc.from("prayer_units").update({ name, active }).eq("id", id).select("id");
+      if (error) throw error;
+      if (!data?.length) return { ok: false, error: "Prayer unit not found." };
+    } else {
+      const { error } = await dbc.from("prayer_units").insert({ name, active });
+      if (error) throw error;
+    }
+    for (const path of PRAYER_UNIT_PAGES) revalidatePath(path);
+    return { ok: true, message: id ? "Prayer unit saved." : "Prayer unit added." };
+  } catch (e) {
+    return toActionError(e);
+  }
+}
+
+/** Only a unit no student or registration uses can be deleted; otherwise switch it off. */
+export async function deletePrayerUnit(input: unknown): Promise<ActionResult> {
+  try {
+    await assertRole("headmaster");
+    const { id } = deletePrayerUnitSchema.parse(input);
+    if (id === NOT_ASSIGNED_PRAYER_UNIT) return { ok: false, error: "\"Not assigned\" cannot be deleted." };
+    const dbc = await createClient();
+    const { data, error } = await dbc.from("prayer_units").delete().eq("id", id).select("id");
+    if (error) {
+      if (error.code === "23503") return { ok: false, error: "Students or registrations use this unit. Switch it off instead." };
+      throw error;
+    }
+    if (!data?.length) return { ok: false, error: "Prayer unit not found." };
+    for (const path of PRAYER_UNIT_PAGES) revalidatePath(path);
+    return { ok: true, message: "Prayer unit deleted." };
   } catch (e) {
     return toActionError(e);
   }

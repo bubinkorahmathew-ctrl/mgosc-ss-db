@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { listStudents } from "@/lib/data/students";
+import { getPrayerUnits, listStudents } from "@/lib/data/students";
 import { getTeacherClassContext } from "@/lib/data/teacher-context";
 import { studentFiltersSchema } from "@/lib/validation/student";
 import { EmptyState, PageHeader } from "@/components/page-header";
@@ -19,7 +19,7 @@ export default async function TeacherStudentsPage({ searchParams }: PageProps<"/
 
   // class filter is forced to the selected (own) class; RLS also limits rows
   const filters = { ...studentFiltersSchema.parse(sp), class_id: selected.id };
-  const result = await listStudents(filters);
+  const [result, prayerUnits] = await Promise.all([listStudents(filters), getPrayerUnits()]);
 
   return (
     <>
@@ -30,8 +30,8 @@ export default async function TeacherStudentsPage({ searchParams }: PageProps<"/
           </Button>
         )} />
       <ClassSwitcher classes={classes} selectedId={selected.id} />
-      <StudentFilters classes={[]} showClassFilter={false} />
-      <StudentsTable rows={result.rows} basePath="/teacher/students" empty="No students in this class match." />
+      <StudentFilters classes={[]} prayerUnits={prayerUnits} showClassFilter={false} />
+      <StudentsTable rows={result.rows} basePath="/teacher/students" searchParams={sp} empty="No students in this class match." />
       <Pagination page={result.page} pageCount={result.pageCount} total={result.total}
         searchParams={sp} basePath="/teacher/students" />
     </>

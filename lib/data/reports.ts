@@ -1,8 +1,9 @@
 import "server-only";
 import { createClient } from "@/lib/db/server";
-import { ageOn, todayISO } from "@/lib/dates";
+import { ageParts, todayISO } from "@/lib/dates";
 import { classLabel } from "@/lib/format";
-import { dobBoundsForAge, type RangeFilters, type StudentReportFilters } from "@/lib/validation/reports";
+import { studentConditions, studentOrder } from "@/lib/data/students";
+import type { RangeFilters, StudentReportFilters } from "@/lib/validation/reports";
 
 const MAX_ROWS = 5000;
 
@@ -16,27 +17,28 @@ export async function defaultRange() {
   return { from, to };
 }
 
-/** Student list with age as of a chosen date. RLS limits teachers to their classes. */
+/** Student list with age as on a chosen date, same filters as the Students page. The policies limit teachers to their classes. */
 export async function studentReport(f: StudentReportFilters, allowedClassIds: string[] | "all") {
   const dbc = await createClient();
+  const order = studentOrder(f);
   let q = dbc.from("students")
-    .select("admission_no, full_name, full_name_ml, dob, gender, school_class, school_name, prayer_group, father_name, mother_name, guardian_phone, father_phone, email, address, baptism_name, status, classes(name, section)")
-    .order("full_name").limit(MAX_ROWS);
-  if (f.status !== "all") q = q.eq("status", f.status);
-  if (f.class_id) q = q.eq("class_id", f.class_id);
-  else if (allowedClassIds !== "all") q = q.in("class_id", allowedClassIds.length ? allowedClassIds : ["00000000-0000-0000-0000-000000000000"]);
-  if (f.school_class) q = q.eq("school_class", f.school_class);
-  if (f.gender) q = q.eq("gender", f.gender);
-  const { latest, earliestExclusive } = dobBoundsForAge(f.as_of, f.age_min, f.age_max);
-  if (latest) q = q.lte("dob", latest);
-  if (earliestExclusive) q = q.gt("dob", earliestExclusive);
+    .select("admission_no, full_name, full_name_ml, dob, gender, school_class, school_name, father_name, mother_name, guardian_phone, father_phone, email, address, baptism_name, status, inactive_reason, classes(name, section), prayer_units(name)")
+    .match(studentConditions(f))
+    .order(order.column, { ascending: order.ascending }).limit(MAX_ROWS);
+  if (order.column !== "full_name") q = q.order("full_name");
+  if (!f.class_id && allowedClassIds !== "all") q = q.in("class_id", allowedClassIds);
   const { data, error } = await q;
   if (error) throw error;
-  return (data ?? []).map((s) => ({
-    ...s,
-    class: s.classes ? classLabel(s.classes) : "",
-    age: ageOn(s.dob, f.as_of),
-  }));
+  return (data ?? []).map((s) => {
+    const { years, months } = ageParts(s.dob, f.as_of);
+    return {
+      ...s,
+      class: s.classes ? classLabel(s.classes) : "",
+      prayer_unit: s.prayer_units?.name ?? "",
+      age: years,
+      age_ym: `${years} y ${months} m`,
+    };
+  });
 }
 export type StudentReportRow = Awaited<ReturnType<typeof studentReport>>[number];
 
@@ -71,6 +73,33 @@ export async function attendanceReport(classId: string, from: string, to: string
   return { rows, sessions: dates.size };
 }
 export type AttendanceReportRow = Awaited<ReturnType<typeof attendanceReport>>["rows"][number];
+
+/** Who sat one exam: counts, and the absentees with their remarks. Null if the caller can't see the exam. */
+export async function examAttendanceReport(examId: string) {
+  const dbc = await createClient();
+  const { data: exam } = await dbc.from("exams").select("id, name, exam_date, class_id, classes(name, section)")
+    .eq("id", examId).maybeSingle();
+  if (!exam) return null;
+  const [{ data: rows, error }, { data: classStudents }] = await Promise.all([
+    dbc.from("exam_attendance").select("student_id, status, remark, students(full_name, admission_no)").eq("exam_id", examId),
+    dbc.from("students").select("id, full_name, admission_no").eq("class_id", exam.class_id).eq("status", "active").order("full_name"),
+  ]);
+  if (error) throw error;
+  const marked = new Map((rows ?? []).map((r) => [r.student_id, r]));
+  const absentees = (rows ?? []).filter((r) => r.status === "absent")
+    .map((r) => ({ admission_no: r.students?.admission_no ?? "", full_name: r.students?.full_name ?? "", remark: r.remark ?? "" }))
+    .sort((a, b) => a.full_name.localeCompare(b.full_name));
+  const notMarked = (classStudents ?? []).filter((s) => !marked.has(s.id));
+  return {
+    exam: { id: exam.id, name: exam.name, exam_date: exam.exam_date, class_id: exam.class_id },
+    className: exam.classes ? classLabel(exam.classes) : "",
+    present: (rows ?? []).filter((r) => r.status === "present").length,
+    absent: absentees.length,
+    absentees,
+    notMarked: notMarked.map((s) => ({ admission_no: s.admission_no, full_name: s.full_name })),
+  };
+}
+export type ExamAttendanceReport = NonNullable<Awaited<ReturnType<typeof examAttendanceReport>>>;
 
 export async function activityReport(f: RangeFilters, allowedClassIds: string[] | "all") {
   const dbc = await createClient();

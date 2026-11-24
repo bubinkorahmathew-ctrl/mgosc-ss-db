@@ -13,6 +13,7 @@ export const ADMIN_NAV: NavItem[] = [
   { href: "/admin", label: "Dashboard", icon: "dashboard", color: "blue", primary: true },
   { href: "/admin/registrations", label: "Registrations", icon: "inbox", color: "orange", primary: true },
   { href: "/admin/students", label: "Students", icon: "students", color: "blue", primary: true },
+  { href: "/admin/attendance", label: "Attendance", icon: "attendance", color: "green" },
   { href: "/admin/import", label: "Bulk upload", icon: "upload", color: "teal" },
   { href: "/admin/classes", label: "Classes", icon: "classes", color: "indigo" },
   { href: "/admin/teachers", label: "Teachers", icon: "teachers", color: "purple" },

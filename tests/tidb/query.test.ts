@@ -2,7 +2,8 @@
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createQueryClient } from "@/lib/db/query";
 import { readSignature, removeSignature, saveSignature } from "@/lib/branding";
-import { createTiDbTest, IDS, type Sandbox, type TiDbTest } from "./harness";
+import { todayISO } from "@/lib/dates";
+import { createTiDbTest, IDS, PRAYER_UNIT, type Sandbox, type TiDbTest } from "./harness";
 
 let t: TiDbTest;
 let s: Sandbox;
@@ -99,12 +100,14 @@ describe("writes and errors", () => {
   it("insert with select and single", async () => {
     const { data } = await t1().from("students").insert({
       full_name: "Via Client", dob: "2020-01-01", gender: "male", guardian_phone: "9000000000", school_class: "LKG", class_id: IDS.class1,
+      prayer_unit_id: PRAYER_UNIT, father_name: "Father", father_phone: "9000000000",
     }).select("id, admission_no").single();
     expect(data!.admission_no).toBe("SS-2026-0011");
   });
   it("upsert, update and delete", async () => {
+    // today: within the 14 days a teacher may still write
     const up = await t1().from("attendance").upsert(
-      [{ student_id: IDS.studentC1, class_id: IDS.class1, date: "2026-11-22", status: "late" }], { onConflict: "student_id,date" });
+      [{ student_id: IDS.studentC1, class_id: IDS.class1, date: todayISO(), status: "late" }], { onConflict: "student_id,date" });
     expect(up.error).toBeNull();
     const upd = await head().from("students").update({ status: "inactive" }).eq("class_id", IDS.class1).in("id", [IDS.studentC1]).select("id");
     expect(upd.data).toEqual([{ id: IDS.studentC1 }]);

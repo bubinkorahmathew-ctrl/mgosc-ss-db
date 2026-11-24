@@ -9,6 +9,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { parseEnv } from "node:util";
 import mysql from "mysql2/promise";
+import { FATHER_NAME_PLACEHOLDER, NOT_ASSIGNED_PRAYER_UNIT } from "@/lib/config";
+import { todayISO } from "@/lib/dates";
 import { createDb } from "@/lib/db/client";
 import { createDatabase, createPool, executor, type Database, type TiDbConfig } from "@/lib/db/connection";
 import { translateError } from "@/lib/db/errors";
@@ -41,6 +43,27 @@ const TABLES: TableName[] = [
   "subjects", "exams", "marks", "attendance", "activities", "certificates", "school_settings", "number_counters",
 ];
 
+/** Tables that exist only on TiDB: the Postgres spec has nothing to compare them with. */
+export const TIDB_ONLY_TABLES: ReadonlySet<TableName> = new Set<TableName>(["prayer_units", "exam_attendance"]);
+
+/** A date n days before today (India time): teachers write attendance only 14 days back. */
+export const daysAgo = (n: number) => new Date(Date.parse(todayISO()) - n * 864e5).toISOString().slice(0, 10);
+
+/** An active prayer unit in every test database, for new students and registrations. */
+export const PRAYER_UNIT = "70000000-0000-4000-8000-000000000001";
+
+/** Required on TiDB, absent from the spec: filled the way migration 20261125000000 fills old rows. */
+function tidbOnly(table: TableName, j: Record<string, unknown>): Record<string, unknown> {
+  if (table === "attendance") return { updated_at: new Date().toISOString() };
+  if (table === "marks") return { is_absent: false };
+  if (table !== "students" && table !== "registrations") return {};
+  return {
+    prayer_unit_id: NOT_ASSIGNED_PRAYER_UNIT,
+    father_name: j.father_name ?? FATHER_NAME_PLACEHOLDER,
+    father_phone: j.father_phone ?? j.guardian_phone,
+  };
+}
+
 async function copyFixture(pg: TestDb, to: mysql.Connection) {
   await to.query("delete from school_settings"); // the migration's default row
   for (const table of TABLES) {
@@ -49,8 +72,12 @@ async function copyFixture(pg: TestDb, to: mysql.Connection) {
     const names = Object.keys(COLUMNS[table]);
     await to.query(
       `insert into \`${table}\` (${names.map((c) => `\`${c}\``).join(", ")}) values ?`,
-      [rows.map(({ j }) => names.map((c) => toDb(table, c, j[c] ?? null)))]);
+      [rows.map(({ j }) => {
+        const row = { ...j, ...tidbOnly(table, j) };
+        return names.map((c) => toDb(table, c, row[c] ?? null));
+      })]);
   }
+  await to.query("insert into prayer_units (id, name) values (?, 'St. Thomas')", [PRAYER_UNIT]);
 }
 
 export async function createTiDbTest(extendFixture?: (pg: TestDb) => Promise<void>) {

@@ -7,15 +7,19 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Field, NativeSelect, firstError } from "./field";
 
+export type PrayerUnitOption = { id: string; name: string };
+
 type Props = {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   register: UseFormRegister<any>;
   errors: FieldErrors<PersonalFieldsInput>;
   serverErrors?: Record<string, string[]>;
+  /** active units, plus the record's current unit when editing */
+  prayerUnits: PrayerUnitOption[];
 };
 
 /** Fields shared by the public registration form and the student form. */
-export function PersonalFieldsFieldset({ register, errors, serverErrors }: Props) {
+export function PersonalFieldsFieldset({ register, errors, serverErrors, prayerUnits }: Props) {
   const e = (name: keyof PersonalFieldsInput) => firstError(errors[name] as { message?: string }, serverErrors, name);
   const invalid = (name: keyof PersonalFieldsInput) => !!e(name) || undefined;
 
@@ -44,16 +48,20 @@ export function PersonalFieldsFieldset({ register, errors, serverErrors }: Props
       <Field id="school_name" label="School name" error={e("school_name")}>
         <Input id="school_name" aria-invalid={invalid("school_name")} {...register("school_name")} />
       </Field>
-      <Field id="father_name" label="Father's name" error={e("father_name")}>
+      <Field id="father_name" label="Father's name" required error={e("father_name")}>
         <Input id="father_name" aria-invalid={invalid("father_name")} {...register("father_name")} />
       </Field>
       <Field id="mother_name" label="Mother's name" error={e("mother_name")}>
         <Input id="mother_name" aria-invalid={invalid("mother_name")} {...register("mother_name")} />
       </Field>
-      <Field id="prayer_group" label="Prayer group name" error={e("prayer_group")} className="sm:col-span-2" hint="Optional">
-        <Input id="prayer_group" autoComplete="off" aria-invalid={invalid("prayer_group")} {...register("prayer_group")} />
+      <Field id="prayer_unit_id" label="Prayer unit" required error={e("prayer_unit_id")} className="sm:col-span-2">
+        <NativeSelect id="prayer_unit_id" aria-invalid={invalid("prayer_unit_id")} {...register("prayer_unit_id")}>
+          <option value="">Select…</option>
+          {prayerUnits.map((u) => <option key={u.id} value={u.id}>{u.name}</option>)}
+        </NativeSelect>
       </Field>
-      <Field id="father_phone" label="Father's mobile number" error={e("father_phone")} hint="Optional">
+      <Field id="father_phone" label="Father's mobile number" required error={e("father_phone")}
+        hint="8 to 15 digits; add + and the country code for a number outside India">
         <Input id="father_phone" type="tel" inputMode="tel" autoComplete="off"
           aria-invalid={invalid("father_phone")} {...register("father_phone")} />
       </Field>

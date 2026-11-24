@@ -1,5 +1,7 @@
 import { Download } from "lucide-react";
-import { ageOn, formatDate } from "@/lib/dates";
+import { FATHER_NAME_PLACEHOLDER, NOT_ASSIGNED_PRAYER_UNIT } from "@/lib/config";
+import { formatAge, formatDate, todayISO } from "@/lib/dates";
+import { StudentAttendanceCalendar } from "@/components/attendance/student-attendance-calendar";
 import { classLabel, percent } from "@/lib/format";
 import type { StudentProfile } from "@/lib/data/student-profile";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -15,17 +17,23 @@ const CERT_LABEL: Record<string, string> = {
   memory_verse: "Memory verse", custom: "Custom",
 };
 
+/** A placeholder left by the migration: shown so it gets fixed. */
+function Missing({ text }: { text: string }) {
+  return <span className="font-medium text-amber-800">{text}: please update</span>;
+}
+
 export function StudentProfileView({ profile }: { profile: StudentProfile }) {
   const { student: s, attendance, examResults, activities, certificates } = profile;
   const details: [string, React.ReactNode][] = [
     ["Admission no", <span key="a" className="font-mono">{s.admission_no}</span>],
     ["Sunday School class", s.classes ? `${classLabel(s.classes)} (${s.classes.academic_years?.name ?? ""})` : "Not assigned"],
-    ["Date of birth", `${formatDate(s.dob)} (age ${ageOn(s.dob)})`],
+    ["Date of birth", formatDate(s.dob)],
+    ["Age", formatAge(s.dob)],
     ["Gender", genderLabel(s.gender)],
     ["School class", s.school_class],
     ["School name", s.school_name || "-"],
-    ["Prayer group", s.prayer_group || "-"],
-    ["Father", s.father_name || "-"],
+    ["Prayer unit", s.prayer_unit_id === NOT_ASSIGNED_PRAYER_UNIT ? <Missing key="u" text="Not assigned" /> : s.prayer_units?.name ?? "-"],
+    ["Father", s.father_name === FATHER_NAME_PLACEHOLDER ? <Missing key="n" text="Not given" /> : s.father_name],
     ["Mother", s.mother_name || "-"],
     ["Father's mobile", s.father_phone ? <a key="f" href={`tel:${s.father_phone}`} className="text-primary underline">{s.father_phone}</a> : "-"],
     ["Guardian phone", <a key="p" href={`tel:${s.guardian_phone}`} className="text-primary underline">{s.guardian_phone}</a>],
@@ -34,6 +42,7 @@ export function StudentProfileView({ profile }: { profile: StudentProfile }) {
     ["Baptism name", s.baptism_name || "-"],
     ["Status", <StatusBadge key="s" status={s.status} />],
   ];
+  if (s.status === "inactive" && s.inactive_reason) details.push(["Reason for inactive", s.inactive_reason]);
 
   return (
     <div className="space-y-4">
@@ -104,14 +113,22 @@ export function StudentProfileView({ profile }: { profile: StudentProfile }) {
               <span className="font-semibold text-amber-700">{attendance.late}</span> late ·{" "}
               <span className="font-semibold text-red-700">{attendance.absent}</span> absent
             </p>
+            <p className="text-sm">
+              Attendance: <b>{percent(attendance.present + attendance.late, attendance.totalDays, 1)}</b> (late counts as attended)
+            </p>
             {!attendance.recent.length ? <p className="text-sm text-muted-foreground">No attendance marked yet.</p> : (
-              <ul className="divide-y text-sm">
-                {attendance.recent.map((a) => (
-                  <li key={a.date} className="flex justify-between py-2">
-                    <span>{formatDate(a.date)}</span><span className="capitalize">{a.status}</span>
-                  </li>
-                ))}
-              </ul>
+              <div className="grid gap-6 md:grid-cols-2">
+                <StudentAttendanceCalendar days={attendance.all} today={todayISO()} />
+                <ul className="divide-y text-sm">
+                  {attendance.recent.map((a) => (
+                    <li key={a.date} className="flex justify-between gap-2 py-2">
+                      <span>{formatDate(a.date)}</span>
+                      <span className="text-right"><span className="capitalize">{a.status}</span>
+                        {a.remark && <span className="block text-xs text-muted-foreground">{a.remark}</span>}</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
             )}
           </CardContent></Card>
         </TabsContent>

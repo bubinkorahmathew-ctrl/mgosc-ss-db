@@ -3,7 +3,7 @@ import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@
 import { PDF_FONT, PDF_SERIF, registerPdfFonts } from "./fonts";
 import { BANNER_RATIO, type PdfImage } from "./images";
 import type { ExamResults } from "@/lib/data/results";
-import { formatDate } from "@/lib/dates";
+import { formatAge, formatDate } from "@/lib/dates";
 import { formatPercent, ordinal } from "@/lib/results";
 
 const s = StyleSheet.create({
@@ -75,6 +75,10 @@ export async function renderReportCards(data: ExamResults, studentIds: string[] 
               <View style={s.infoItem}><Text style={s.label}>Student</Text><Text style={s.bold}>{r.name}</Text>
                 {r.nameMl && <Text>{r.nameMl}</Text>}</View>
               <View style={s.infoItem}><Text style={s.label}>Admission no</Text><Text>{r.admissionNo}</Text></View>
+              {r.dob && (
+                <View style={s.infoItem}><Text style={s.label}>Age</Text>
+                  <Text>{formatAge(r.dob, data.exam.exam_date ?? undefined)}</Text></View>
+              )}
               <View style={s.infoItem}><Text style={s.label}>Class</Text><Text>{data.className}</Text></View>
               <View style={s.infoItem}><Text style={s.label}>Exam date</Text>
                 <Text>{data.exam.exam_date ? formatDate(data.exam.exam_date) : "-"}</Text></View>
@@ -90,7 +94,7 @@ export async function renderReportCards(data: ExamResults, studentIds: string[] 
                 <View key={sub.id} style={s.row}>
                   <Text style={[s.cell, s.cSubject]}>{sub.name}</Text>
                   <Text style={[s.cell, s.cNum]}>{sub.max}</Text>
-                  <Text style={[s.cell, s.cNum]}>{r.marks[sub.id] ?? "-"}</Text>
+                  <Text style={[s.cell, s.cNum]}>{r.examAbsent ? "AB" : r.marks[sub.id] ?? "-"}</Text>
                 </View>
               ))}
               <View style={[s.row, s.headRow]}>
@@ -101,7 +105,8 @@ export async function renderReportCards(data: ExamResults, studentIds: string[] 
             </View>
 
             <View style={s.summary}>
-              <View style={s.box}><Text style={s.label}>Percentage</Text><Text style={s.big}>{formatPercent(r.percentage)}</Text></View>
+              <View style={s.box}><Text style={s.label}>Percentage</Text>
+                <Text style={s.big}>{r.examAbsent ? "Absent" : formatPercent(r.percentage)}</Text></View>
               <View style={s.box}><Text style={s.label}>Rank</Text>
                 <Text style={s.big}>{r.rank ? `${ordinal(r.rank)} of ${ranked}` : "-"}</Text></View>
               <View style={s.box}><Text style={s.label}>Attendance ({data.yearName})</Text>

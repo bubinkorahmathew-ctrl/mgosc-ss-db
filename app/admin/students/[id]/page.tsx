@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, Pencil } from "lucide-react";
 import { getStudentProfile } from "@/lib/data/student-profile";
 import { getClassOptions } from "@/lib/data/classes";
+import { requireRole } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
 import { StudentProfileView } from "@/components/students/student-profile-view";
@@ -14,7 +15,7 @@ export const metadata: Metadata = { title: "Student" };
 export default async function AdminStudentPage({ params }: PageProps<"/admin/students/[id]">) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const [profile, classes] = await Promise.all([getStudentProfile(id), getClassOptions()]);
+  const [user, profile, classes] = await Promise.all([requireRole("headmaster"), getStudentProfile(id), getClassOptions()]);
   if (!profile) notFound();
   const s = profile.student;
 
@@ -29,7 +30,8 @@ export default async function AdminStudentPage({ params }: PageProps<"/admin/stu
             <Button variant="outline" render={<Link href={`/admin/students/${s.id}/edit`} />} nativeButton={false}>
               <Pencil /> Edit
             </Button>
-            <StudentAdminActions studentId={s.id} classId={s.class_id} status={s.status}
+            <StudentAdminActions studentId={s.id} studentName={s.full_name} classId={s.class_id} status={s.status}
+              canDelete={user.superAdmin}
               classes={classes.map((c) => ({ id: c.id, label: c.isCurrent ? c.label : `${c.label} (${c.yearName})` }))} />
           </>
         } />

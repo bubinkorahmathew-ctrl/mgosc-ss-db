@@ -62,10 +62,10 @@ export const STUDENT_COLUMNS: (Column & { hint?: string; width: number })[] = [
   { key: "guardian_phone", label: "Phone", required: true, aliases: ["phone", "guardian phone", "mobile", "phone number"], width: 15 },
   { key: "school_class", label: "School class", required: true, hint: "LKG, UKG, Grade 1-12", aliases: ["school class", "standard", "std"], width: 14 },
   { key: "school_name", label: "School name", aliases: ["school name", "school"], width: 24 },
-  { key: "prayer_group", label: "Prayer group", aliases: ["prayer group", "prayer group name"], width: 20 },
-  { key: "father_name", label: "Father's name", aliases: ["father's name", "father", "father name", "fathers name"], width: 20 },
+  { key: "prayer_unit", label: "Prayer unit", required: true, hint: "from the list", aliases: ["prayer unit", "prayer group", "prayer group name"], width: 22 },
+  { key: "father_name", label: "Father's name", required: true, aliases: ["father's name", "father", "father name", "fathers name"], width: 20 },
   { key: "mother_name", label: "Mother's name", aliases: ["mother's name", "mother", "mother name", "mothers name"], width: 20 },
-  { key: "father_phone", label: "Father's mobile", aliases: ["father's mobile", "father's mobile number", "father's phone", "father mobile", "father phone"], width: 16 },
+  { key: "father_phone", label: "Father's mobile", required: true, aliases: ["father's mobile", "father's mobile number", "father's phone", "father mobile", "father phone"], width: 16 },
   { key: "email", label: "Email", aliases: ["email", "e-mail", "email address"], width: 26 },
   { key: "address", label: "Address", aliases: ["address"], width: 30 },
   { key: "baptism_name", label: "Baptism name", aliases: ["baptism name", "baptismal name"], width: 20 },
@@ -95,7 +95,11 @@ export type ParsedStudent = { row: number; key: string; data: PersonalFields };
 /** Same child: same name (any case) and date of birth. */
 export const studentKey = (name: string, dob: string) => `${name.toLowerCase()}|${dob}`;
 
-export function parseStudents(sheet: Sheet) {
+export type PrayerUnitRef = { id: string; name: string };
+
+/** `prayerUnits`: the units offered on forms; a row names one of them (any case). */
+export function parseStudents(sheet: Sheet, prayerUnits: PrayerUnitRef[]) {
+  const unitByName = new Map(prayerUnits.map((u) => [u.name.toLowerCase().replace(/\s+/g, " ").trim(), u.id]));
   const fileErrors: string[] = [];
   const { found } = mapColumns(sheet.headers, STUDENT_COLUMNS, fileErrors);
   const at = (cells: Cell[], key: string) => (found.has(key) ? cells[found.get(key)!] : null);
@@ -113,6 +117,9 @@ export function parseStudents(sheet: Sheet) {
     if (text(at(cells, "gender")) && !g) errors.push(`Gender must be Male or Female.`);
     const sc = schoolClass(text(at(cells, "school_class")));
     if (text(at(cells, "school_class")) && !sc) errors.push(`School class "${text(at(cells, "school_class"))}" is not valid. Use LKG, UKG or Grade 1 to Grade 12.`);
+    const unitText = text(at(cells, "prayer_unit"));
+    const unitId = unitByName.get(unitText.toLowerCase().replace(/\s+/g, " ").trim());
+    if (unitText && !unitId) errors.push(`Prayer unit "${unitText}" is not in the list. Use one from the template, or ask an admin to add it in Settings.`);
 
     const result = personalFields.safeParse({
       full_name: name,
@@ -121,7 +128,7 @@ export function parseStudents(sheet: Sheet) {
       guardian_phone: text(at(cells, "guardian_phone")) || undefined,
       school_class: sc ?? undefined,
       school_name: text(at(cells, "school_name")),
-      prayer_group: text(at(cells, "prayer_group")),
+      prayer_unit_id: unitId ?? (unitText ? "invalid" : undefined),
       father_name: text(at(cells, "father_name")),
       mother_name: text(at(cells, "mother_name")),
       father_phone: text(at(cells, "father_phone")),
@@ -135,7 +142,8 @@ export function parseStudents(sheet: Sheet) {
         const field = String(issue.path[0] ?? "");
         // already explained above, with the value that was typed
         if ((field === "dob" && text(dobCell) && !dob) || (field === "gender" && text(at(cells, "gender")))
-          || (field === "school_class" && text(at(cells, "school_class")))) continue;
+          || (field === "school_class" && text(at(cells, "school_class")))
+          || (field === "prayer_unit_id" && unitText)) continue;
         if (reported.has(field)) continue;
         reported.add(field);
         errors.push(issue.message);

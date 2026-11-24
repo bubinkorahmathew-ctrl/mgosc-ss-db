@@ -3,8 +3,9 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { ArrowRightLeft, Loader2, UserCheck, UserX } from "lucide-react";
-import { moveStudent, setStudentStatus } from "@/actions/students";
+import { ArrowRightLeft, Loader2, Trash2, UserCheck, UserX } from "lucide-react";
+import { deleteStudent, moveStudent, setStudentStatus } from "@/actions/students";
+import { INACTIVE_REASONS } from "@/lib/validation/student";
 import { Button } from "@/components/ui/button";
 import {
   Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger,
@@ -14,14 +15,22 @@ import {
   AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Field, NativeSelect } from "@/components/form/field";
+import { Input } from "@/components/ui/input";
 
-export function StudentAdminActions({ studentId, classId, status, classes }: {
-  studentId: string; classId: string | null; status: string; classes: { id: string; label: string }[];
+const OTHER = "__other";
+
+export function StudentAdminActions({ studentId, studentName, classId, status, classes, canDelete }: {
+  studentId: string; studentName: string; classId: string | null; status: string;
+  classes: { id: string; label: string }[]; canDelete: boolean;
 }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [moveOpen, setMoveOpen] = useState(false);
   const [target, setTarget] = useState(classId ?? "");
+  const [deactivateOpen, setDeactivateOpen] = useState(false);
+  const [reason, setReason] = useState<string>(INACTIVE_REASONS[0]);
+  const [otherReason, setOtherReason] = useState("");
+  const finalReason = reason === OTHER ? otherReason.trim() : reason;
 
   const doMove = () => start(async () => {
     const res = await moveStudent({ id: studentId, class_id: target || null });
@@ -32,10 +41,20 @@ export function StudentAdminActions({ studentId, classId, status, classes }: {
   });
 
   const doStatus = (next: "active" | "inactive") => start(async () => {
-    const res = await setStudentStatus({ id: studentId, status: next });
+    const res = await setStudentStatus({
+      id: studentId, status: next, inactive_reason: next === "inactive" ? finalReason : null,
+    });
     if (!res.ok) { toast.error(res.error); return; }
     toast.success(res.message ?? "Updated.");
+    setDeactivateOpen(false);
     router.refresh();
+  });
+
+  const doDelete = () => start(async () => {
+    const res = await deleteStudent({ id: studentId });
+    if (!res.ok) { toast.error(res.error); return; }
+    toast.success(res.message ?? "Student deleted.");
+    router.replace("/admin/students");
   });
 
   return (
@@ -62,28 +81,60 @@ export function StudentAdminActions({ studentId, classId, status, classes }: {
       </Dialog>
 
       {status === "active" ? (
-        <AlertDialog>
-          <AlertDialogTrigger render={<Button variant="destructive" />}><UserX /> Deactivate</AlertDialogTrigger>
-          <AlertDialogContent>
-            <AlertDialogHeader>
-              <AlertDialogTitle>Deactivate this student?</AlertDialogTitle>
-              <AlertDialogDescription>
+        <Dialog open={deactivateOpen} onOpenChange={setDeactivateOpen}>
+          <DialogTrigger render={<Button variant="destructive" />}><UserX /> Deactivate</DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Deactivate this student?</DialogTitle>
+              <DialogDescription>
                 The student will be hidden from class lists, attendance and marks entry. Their records are kept and
                 you can re-activate them any time.
-              </AlertDialogDescription>
-            </AlertDialogHeader>
-            <AlertDialogFooter>
-              <AlertDialogCancel>Cancel</AlertDialogCancel>
-              <AlertDialogAction variant="destructive" onClick={() => doStatus("inactive")} disabled={pending}>
-                Deactivate
-              </AlertDialogAction>
-            </AlertDialogFooter>
-          </AlertDialogContent>
-        </AlertDialog>
+              </DialogDescription>
+            </DialogHeader>
+            <Field id="inactive-reason" label="Reason">
+              <NativeSelect id="inactive-reason" value={reason} onChange={(e) => setReason(e.target.value)}>
+                {INACTIVE_REASONS.map((r) => <option key={r} value={r}>{r}</option>)}
+                <option value={OTHER}>Other…</option>
+              </NativeSelect>
+            </Field>
+            {reason === OTHER && (
+              <Field id="inactive-reason-other" label="Other reason">
+                <Input id="inactive-reason-other" value={otherReason} maxLength={200}
+                  onChange={(e) => setOtherReason(e.target.value)} />
+              </Field>
+            )}
+            <DialogFooter>
+              <Button variant="destructive" onClick={() => doStatus("inactive")} disabled={pending || !finalReason}>
+                {pending && <Loader2 className="animate-spin" />} Deactivate
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       ) : (
         <Button variant="outline" onClick={() => doStatus("active")} disabled={pending}>
           {pending ? <Loader2 className="animate-spin" /> : <UserCheck />} Re-activate
         </Button>
+      )}
+
+      {canDelete && (
+        <AlertDialog>
+          <AlertDialogTrigger render={<Button variant="destructive" />}><Trash2 /> Delete</AlertDialogTrigger>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete {studentName} permanently?</AlertDialogTitle>
+              <AlertDialogDescription>
+                This removes the student together with all their marks, attendance, activities and certificates.
+                It cannot be undone. To keep the records, deactivate the student instead.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction variant="destructive" onClick={doDelete} disabled={pending}>
+                Delete permanently
+              </AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
       )}
     </>
   );

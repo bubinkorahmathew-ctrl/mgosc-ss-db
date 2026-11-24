@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import { listStudents } from "@/lib/data/students";
+import { getPrayerUnits, listStudents } from "@/lib/data/students";
 import { getClassOptions } from "@/lib/data/classes";
 import { studentFiltersSchema } from "@/lib/validation/student";
 import { Button } from "@/components/ui/button";
@@ -14,7 +14,7 @@ export const metadata: Metadata = { title: "Students" };
 export default async function StudentsPage({ searchParams }: PageProps<"/admin/students">) {
   const sp = await searchParams;
   const filters = studentFiltersSchema.parse(sp);
-  const [result, classes] = await Promise.all([listStudents(filters), getClassOptions()]);
+  const [result, classes, prayerUnits] = await Promise.all([listStudents(filters), getClassOptions(), getPrayerUnits()]);
 
   return (
     <>
@@ -22,10 +22,10 @@ export default async function StudentsPage({ searchParams }: PageProps<"/admin/s
         actions={
           <Button render={<Link href="/admin/students/new" />} nativeButton={false}><Plus /> Add student</Button>
         } />
-      <StudentFilters classes={classes.map((c) => ({
+      <StudentFilters prayerUnits={prayerUnits} classes={classes.map((c) => ({
         id: c.id, label: c.isCurrent ? c.label : `${c.label} (${c.yearName})`,
       }))} />
-      <StudentsTable rows={result.rows} basePath="/admin/students" />
+      <StudentsTable rows={result.rows} basePath="/admin/students" searchParams={sp} />
       <Pagination page={result.page} pageCount={result.pageCount} total={result.total}
         searchParams={sp} basePath="/admin/students" />
     </>

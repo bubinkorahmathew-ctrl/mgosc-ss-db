@@ -14,8 +14,14 @@ export const RELATIONS = {
     classes: { table: "classes", one: "class_id" },
     profiles: { table: "profiles", one: "teacher_id" },
   },
-  students: { classes: { table: "classes", one: "class_id" } },
-  registrations: { profiles: { table: "profiles", one: "reviewed_by" } },
+  students: {
+    classes: { table: "classes", one: "class_id" },
+    prayer_units: { table: "prayer_units", one: "prayer_unit_id" },
+  },
+  registrations: {
+    profiles: { table: "profiles", one: "reviewed_by" },
+    prayer_units: { table: "prayer_units", one: "prayer_unit_id" },
+  },
   exams: {
     classes: { table: "classes", one: "class_id" },
     academic_years: { table: "academic_years", one: "academic_year_id" },
@@ -24,6 +30,13 @@ export const RELATIONS = {
   marks: {
     exams: { table: "exams", one: "exam_id" },
     subjects: { table: "subjects", one: "subject_id" },
+  },
+  exam_attendance: {
+    exams: { table: "exams", one: "exam_id" },
+    students: { table: "students", one: "student_id" },
+  },
+  attendance: {
+    students: { table: "students", one: "student_id" },
   },
   activities: {
     classes: { table: "classes", one: "class_id" },

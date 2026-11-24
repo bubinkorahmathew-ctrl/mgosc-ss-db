@@ -37,7 +37,8 @@ async function done(wb: ExcelJS.Workbook) {
   return Buffer.from(await wb.xlsx.writeBuffer());
 }
 
-export async function studentTemplate(): Promise<Buffer> {
+/** `prayerUnits`: the names offered on forms, listed on their own sheet and as a drop-down. */
+export async function studentTemplate(prayerUnits: string[]): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   const ws = wb.addWorksheet("Students");
   headerRow(ws, STUDENT_COLUMNS.map(studentHeader), STUDENT_COLUMNS.map((c) => c.width));
@@ -46,14 +47,24 @@ export async function studentTemplate(): Promise<Buffer> {
   for (const key of ["dob", "guardian_phone", "father_phone"]) ws.getColumn(col(key)).numFmt = "@";
   validate(ws, col("gender"), 2, LAST, list(["Male", "Female"], "Gender"));
   validate(ws, col("school_class"), 2, LAST, list([...SCHOOL_CLASSES], "School class"));
+  const units = wb.addWorksheet("Prayer units");
+  units.getColumn(1).width = 40;
+  for (const name of prayerUnits) units.addRow([safeCell(name)]);
+  if (prayerUnits.length) {
+    validate(ws, col("prayer_unit"), 2, LAST, {
+      type: "list", allowBlank: true, formulae: [`'Prayer units'!$A$1:$A$${prayerUnits.length}`],
+      showErrorMessage: true, errorTitle: "Prayer unit", error: "Choose a prayer unit from the list.",
+    });
+  }
   instructions(wb, [
     "1. Fill one student per row on the \"Students\" sheet. Do not change the header row.",
-    "2. Columns marked * are required: Name, Date of birth, Gender, Phone and School class.",
+    "2. Columns marked * are required: Name, Date of birth, Gender, Phone, School class, Prayer unit, Father's name and Father's mobile.",
     "3. Date of birth: DD/MM/YYYY, for example 05/03/2015.",
     "4. Gender: Male or Female. School class: LKG, UKG or Grade 1 to Grade 12. Baptism name is optional.",
-    "5. Phone and Father's mobile: 10 digits. Email is optional. Admission numbers are created automatically when the students are saved.",
-    `6. At most ${MAX_ROWS} students per file. Every student goes into the class you choose on the upload page.`,
-    "7. Upload the file and check the preview. Nothing is saved until every row is correct and you press Save.",
+    "5. Prayer unit: one of the names on the \"Prayer units\" sheet. An admin adds new units in Settings.",
+    "6. Phone: 10 digits. Father's mobile: 8 to 15 digits, with + and the country code for a number outside India. Email is optional. Admission numbers are created automatically when the students are saved.",
+    `7. At most ${MAX_ROWS} students per file. Every student goes into the class you choose on the upload page.`,
+    "8. Upload the file and check the preview. Nothing is saved until every row is correct and you press Save.",
   ]);
   return done(wb);
 }

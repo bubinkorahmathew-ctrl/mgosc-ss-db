@@ -1,13 +1,16 @@
 import type { Metadata } from "next";
 import { getClassOptions } from "@/lib/data/classes";
 import { PageHeader } from "@/components/page-header";
-import { ActivitiesReport, AttendanceReport, ReportTabs, StudentsReport } from "@/components/reports/reports";
+import {
+  ActivitiesReport, AttendanceReport, ExamAttendanceReportView, ReportTabs, StudentsReport,
+} from "@/components/reports/reports";
 
 export const metadata: Metadata = { title: "Reports" };
 
 const TABS = [
   { id: "students", label: "Students & ages" },
   { id: "attendance", label: "Attendance" },
+  { id: "exam-attendance", label: "Exam attendance" },
   { id: "activities", label: "Activities" },
 ];
 
@@ -24,6 +27,7 @@ export default async function AdminReportsPage({ searchParams }: PageProps<"/adm
       <ReportTabs base="/admin/reports" tab={tab} tabs={TABS} />
       {tab === "students" && <StudentsReport sp={sp} classes={classes} allowed="all" />}
       {tab === "attendance" && <AttendanceReport sp={sp} classes={classes} />}
+      {tab === "exam-attendance" && <ExamAttendanceReportView sp={sp} classes={classes} />}
       {tab === "activities" && <ActivitiesReport sp={sp} classes={classes} allowed="all" />}
     </>
   );

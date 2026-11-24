@@ -4,7 +4,7 @@ import { afterAll, beforeAll, beforeEach, afterEach, describe, expect, it } from
 import { createTeacherAccount, resetTeacherAccountPassword, setTeacherAccountActive } from "@/lib/authn/accounts";
 import type { Rows } from "@/lib/db/schema";
 import type { Condition } from "@/lib/db/sql";
-import { createTiDbTest, IDS, type Sandbox, type TiDbTest } from "./harness";
+import { createTiDbTest, daysAgo, IDS, PRAYER_UNIT, type Sandbox, type TiDbTest } from "./harness";
 
 const ADMIN = "33333333-3333-3333-3333-333333333331";
 const OTHER_ADMIN = "33333333-3333-3333-3333-333333333332";
@@ -29,6 +29,7 @@ afterEach(async () => {
 
 const child = (over: Partial<Rows["students"]> = {}): Partial<Rows["students"]> => ({
   full_name: "New Child", dob: "2020-01-01", gender: "female", guardian_phone: "9000000000", school_class: "LKG",
+  prayer_unit_id: PRAYER_UNIT, father_name: "Father", father_phone: "9000000000",
   class_id: IDS.class1, ...over,
 });
 const byId = (id: string): Condition[] => [["id", "eq", id]];
@@ -75,7 +76,7 @@ describe("teacher adds students", () => {
   it("can then record attendance, marks and activities for that student, as themselves", async () => {
     const [made] = await t1().insert("students", child());
     const base = { student_id: made.id, class_id: IDS.class1 };
-    const [a] = await t1().upsert("attendance", { ...base, date: "2026-11-22", status: "present", marked_by: IDS.teacher2 });
+    const [a] = await t1().upsert("attendance", { ...base, date: daysAgo(1), status: "present", marked_by: IDS.teacher2 });
     const [m] = await t1().upsert("marks", {
       exam_id: IDS.examC1, student_id: made.id, subject_id: IDS.subjectOT, marks_obtained: 30, entered_by: IDS.headmaster,
     });
@@ -115,6 +116,16 @@ describe("admin", () => {
     expect((await admin().insert("students", child({ class_id: IDS.class3 })))[0].admission_no).toBe("SS-2026-0011");
     expect(await admin().update("students", { class_id: IDS.class2 }, byId(IDS.studentC1))).toHaveLength(1);
     expect(await admin().insert("subjects", { name: "Hymns", max_marks: 25 })).toHaveLength(1);
+  });
+  it("cannot delete students; the super admin can, with their records", async () => {
+    expect(await admin().delete("students", byId(IDS.studentC1))).toEqual([]);
+    expect(await s.as(IDS.headmaster).delete("students", byId(IDS.studentC1))).toHaveLength(1);
+    expect(await s.as(IDS.headmaster).count("students")).toBe(9);
+    expect(await s.as(IDS.headmaster).select("attendance", { where: [["student_id", "eq", IDS.studentC1]] })).toEqual([]);
+  });
+  it("records why a student was made inactive", async () => {
+    const [row] = await admin().update("students", { status: "inactive", inactive_reason: "Exit KSA" }, byId(IDS.studentC1));
+    expect(row).toMatchObject({ status: "inactive", inactive_reason: "Exit KSA" });
   });
   it("manages teachers and their own profile", async () => {
     expect(await admin().update("profiles", { phone: "1" }, byId(IDS.teacher1))).toHaveLength(1);

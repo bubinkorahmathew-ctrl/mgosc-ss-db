@@ -3,7 +3,8 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createPool } from "@/lib/db/connection";
 import { COLUMNS, type TableName } from "@/lib/db/schema";
 import { registrationAttempts } from "@/lib/db/system";
-import { createTiDbTest, IDS, type TiDbTest } from "./harness";
+import { NOT_ASSIGNED_PRAYER_UNIT } from "@/lib/config";
+import { createTiDbTest, daysAgo, IDS, PRAYER_UNIT, type TiDbTest } from "./harness";
 
 let t: TiDbTest;
 beforeAll(async () => {
@@ -75,7 +76,7 @@ describe("hostile input", () => {
     await expect(t.as(IDS.headmaster).update("students", { status: "inactive" }, [])).rejects.toThrow(/needs a filter/);
   });
   it("one bad row rejects the whole batch", async () => {
-    const day = "2026-10-11";
+    const day = daysAgo(0);
     await expect(t1().upsert("attendance", [
       { student_id: IDS.studentC1, class_id: IDS.class1, date: day, status: "present" },
       { student_id: IDS.studentC2, class_id: IDS.class1, date: day, status: "present" },
@@ -84,23 +85,50 @@ describe("hostile input", () => {
   });
 });
 
-describe("prayer group and baptism name", () => {
+describe("prayer unit, father's details and baptism name", () => {
+  const reg = {
+    dob: "2020-01-01", gender: "male" as const, guardian_phone: "9000000000", school_class: "LKG",
+    prayer_unit_id: PRAYER_UNIT, father_name: "മത്തായി പി", father_phone: "+966501234567", baptism_name: "മത്തായി",
+  };
+
   it("survive registration and approval, and the student's teacher can read them", async () => {
-    const group = "സെന്റ് തോമസ് Prayer Group";
-    await t.as(null).insert("registrations", {
-      full_name: "Group Child", dob: "2020-01-01", gender: "male", guardian_phone: "9000000000",
-      school_class: "LKG", prayer_group: group, baptism_name: "മത്തായി",
-    });
+    await t.as(null).insert("registrations", { ...reg, full_name: "Group Child" });
     const head = t.as(IDS.headmaster);
-    const [reg] = await head.select("registrations", { where: [["full_name", "eq", "Group Child"]] });
-    expect([reg.prayer_group, reg.baptism_name]).toEqual([group, "മത്തായി"]);
-    const id = await head.approveRegistration(reg.id, IDS.class2);
+    const [r] = await head.select("registrations", { where: [["full_name", "eq", "Group Child"]] });
+    expect([r.prayer_unit_id, r.father_name, r.father_phone, r.baptism_name])
+      .toEqual([PRAYER_UNIT, "മത്തായി പി", "+966501234567", "മത്തായി"]);
+    const id = await head.approveRegistration(r.id, IDS.class2);
     const [seen] = await t.as(IDS.teacher2).select("students", { where: [["id", "eq", id]] });
-    expect([seen.prayer_group, seen.baptism_name]).toEqual([group, "മത്തായി"]);
+    expect([seen.prayer_unit_id, seen.father_name, seen.father_phone, seen.baptism_name])
+      .toEqual([PRAYER_UNIT, "മത്തായി പി", "+966501234567", "മത്തായി"]);
     await expect(head.update("students", { baptism_name: "x".repeat(121) }, [["id", "eq", id]])).rejects.toThrow(/baptism_name/);
-    const [edited] = await head.update("students", { prayer_group: "St. George" }, [["id", "eq", id]]);
-    expect(edited.prayer_group).toBe("St. George");
     await head.delete("students", [["id", "eq", id]]);
+  });
+
+  it("missing prayer unit, father's name or father's mobile is refused by the database layer", async () => {
+    const anon = t.as(null);
+    for (const column of ["prayer_unit_id", "father_name", "father_phone"] as const) {
+      await expect(anon.insert("registrations", { ...reg, full_name: "Missing", [column]: null })).rejects.toThrow(/required/);
+      const partial: Record<string, unknown> = { ...reg, full_name: "Missing" };
+      delete partial[column];
+      await expect(anon.insert("registrations", partial)).rejects.toThrow();
+    }
+    await expect(anon.insert("registrations", { ...reg, full_name: "Missing", father_name: "" })).rejects.toThrow(/father_name/);
+    await expect(anon.insert("registrations", { ...reg, full_name: "Missing", father_phone: "1234" })).rejects.toThrow(/father_phone/);
+    expect(await t.as(IDS.headmaster).count("registrations", [["full_name", "eq", "Missing"]])).toBe(0);
+  });
+
+  it("a public registration can only use a unit that is offered; anyone can read the list", async () => {
+    await expect(t.as(null).insert("registrations", { ...reg, full_name: "Hidden", prayer_unit_id: NOT_ASSIGNED_PRAYER_UNIT }))
+      .rejects.toThrow(/choose a prayer unit/);
+    expect((await t.as(null).select("prayer_units")).map((u) => u.id)).toEqual(expect.arrayContaining([PRAYER_UNIT, NOT_ASSIGNED_PRAYER_UNIT]));
+  });
+
+  it("only admins change the list, and a unit in use cannot be deleted", async () => {
+    expect(await t.as(IDS.teacher1).update("prayer_units", { name: "x" }, [["id", "eq", PRAYER_UNIT]])).toEqual([]);
+    await expect(t.as(IDS.teacher1).insert("prayer_units", { name: "New" })).rejects.toThrow(/row-level security/);
+    await expect(t.as(null).insert("prayer_units", { name: "New" })).rejects.toThrow(/row-level security/);
+    await expect(t.as(IDS.headmaster).delete("prayer_units", [["id", "eq", NOT_ASSIGNED_PRAYER_UNIT]])).rejects.toThrow(/foreign key/);
   });
 });
 
@@ -126,9 +154,9 @@ describe("concurrent writers (real commits)", () => {
 
   it("two saves of the same attendance leave one row", async () => {
     const save = (status: "present" | "late") => t.as(IDS.teacher1).upsert("attendance",
-      { student_id: IDS.studentC1, class_id: IDS.class1, date: "2026-10-18", status });
+      { student_id: IDS.studentC1, class_id: IDS.class1, date: daysAgo(1), status });
     await Promise.all([save("present"), save("late")]);
-    expect(await t.as(IDS.headmaster).count("attendance", [["date", "eq", "2026-10-18"]])).toBe(1);
+    expect(await t.as(IDS.headmaster).count("attendance", [["date", "eq", daysAgo(1)]])).toBe(1);
   });
 
   /** Start `attempt` while `sql` is uncommitted; it must wait and then see the change. */

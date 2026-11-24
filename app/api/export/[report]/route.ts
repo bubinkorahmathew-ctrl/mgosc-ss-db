@@ -4,7 +4,7 @@ import { accessibleClassIds, assertClassAccess, AuthError } from "@/lib/auth";
 import { formatDate } from "@/lib/dates";
 import { uuid } from "@/lib/validation/common";
 import { parseRange, parseStudentReport } from "@/lib/validation/reports";
-import { activityReport, attendanceReport, defaultRange, studentReport } from "@/lib/data/reports";
+import { activityReport, attendanceReport, defaultRange, examAttendanceReport, studentReport } from "@/lib/data/reports";
 import { getExamResults } from "@/lib/data/results";
 import { createClient } from "@/lib/db/server";
 import { classLabel } from "@/lib/format";
@@ -31,14 +31,15 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/export/[repo
         columns: [
           { header: "Admission no", key: "admission_no", width: 15 }, { header: "Name", key: "full_name", width: 26 },
           { header: "Class", key: "class", width: 14 },
-          { header: "Date of birth", key: "dob_f", width: 13 }, { header: "Age", key: "age", width: 6 },
+          { header: "Date of birth", key: "dob_f", width: 13 }, { header: "Age (years)", key: "age", width: 8 },
+          { header: "Age", key: "age_ym", width: 10 },
           { header: "Gender", key: "gender", width: 9 }, { header: "School class", key: "school_class", width: 12 },
-          { header: "School", key: "school_name", width: 24 }, { header: "Prayer group", key: "prayer_group", width: 22 },
+          { header: "School", key: "school_name", width: 24 }, { header: "Prayer unit", key: "prayer_unit", width: 22 },
           { header: "Father", key: "father_name", width: 20 },
           { header: "Mother", key: "mother_name", width: 20 }, { header: "Phone", key: "guardian_phone", width: 14 },
           { header: "Father's mobile", key: "father_phone", width: 15 }, { header: "Email", key: "email", width: 26 },
           { header: "Address", key: "address", width: 30 }, { header: "Baptism name", key: "baptism_name", width: 22 },
-          { header: "Status", key: "status", width: 10 },
+          { header: "Status", key: "status", width: 10 }, { header: "Inactive reason", key: "inactive_reason", width: 20 },
         ],
         rows: rows.map((r) => ({ ...r, dob_f: formatDate(r.dob) })),
       };
@@ -59,6 +60,22 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/export/[repo
         rows,
       };
       filename = `Attendance ${label} ${f.from} ${f.to}.xlsx`;
+    } else if (report === "exam-attendance") {
+      const exam = uuid.safeParse(sp.exam);
+      if (!exam.success) return textResponse(400, "Choose an exam.");
+      const data = await examAttendanceReport(exam.data);
+      if (!data) return textResponse(404, "Exam not found.");
+      await assertClassAccess(user, data.exam.class_id);
+      sheet = {
+        name: "Exam attendance",
+        title: `${data.exam.name} · ${data.className} · ${data.present} present, ${data.absent} absent${data.notMarked.length ? `, ${data.notMarked.length} not marked` : ""}`,
+        columns: [
+          { header: "Admission no", key: "admission_no", width: 15 }, { header: "Absentee", key: "full_name", width: 28 },
+          { header: "Remark", key: "remark", width: 40 },
+        ],
+        rows: data.absentees,
+      };
+      filename = `Exam attendance ${data.exam.name} ${data.className}.xlsx`;
     } else if (report === "activities") {
       const f = parseRange(sp, await defaultRange());
       if (f.class_id) await assertClassAccess(user, f.class_id);
@@ -90,8 +107,9 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/export/[repo
         rows: data.results.map((r) => {
           const a = data.attendance[r.id];
           return {
-            ...r, ...Object.fromEntries(data.subjects.map((s) => [`s_${s.id}`, r.marks[s.id]])),
+            ...r, ...Object.fromEntries(data.subjects.map((s) => [`s_${s.id}`, r.examAbsent ? "AB" : r.marks[s.id]])),
             total: r.subjectsEntered ? r.total : null, att: a ? `${a.present + a.late}/${a.days}` : "",
+            percentage: r.examAbsent ? "Absent" : r.percentage,
           };
         }),
       };

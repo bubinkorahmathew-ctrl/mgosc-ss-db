@@ -18,24 +18,27 @@ export async function getExamResults(examId: string) {
     .eq("id", examId).maybeSingle();
   if (!exam || !exam.classes || !exam.academic_years) return null;
 
-  const [{ data: subjects }, { data: marks }, { data: classStudents }] = await Promise.all([
+  const [{ data: subjects }, { data: marks }, { data: classStudents }, { data: examAttendance }] = await Promise.all([
     dbc.from("subjects").select("id, name, max_marks, sort_order").order("sort_order").order("name"),
-    dbc.from("marks").select("student_id, subject_id, marks_obtained").eq("exam_id", examId),
-    dbc.from("students").select("id, admission_no, full_name, full_name_ml")
+    dbc.from("marks").select("student_id, subject_id, marks_obtained, is_absent").eq("exam_id", examId),
+    dbc.from("students").select("id, admission_no, full_name, full_name_ml, dob")
       .eq("class_id", exam.class_id).eq("status", "active"),
+    dbc.from("exam_attendance").select("student_id, status").eq("exam_id", examId),
   ]);
+  const examAbsent = new Set((examAttendance ?? []).filter((a) => a.status === "absent").map((a) => a.student_id));
 
   const known = new Set((classStudents ?? []).map((s) => s.id));
   const missing = [...new Set((marks ?? []).map((m) => m.student_id))].filter((id) => !known.has(id));
   const { data: extra } = missing.length
-    ? await dbc.from("students").select("id, admission_no, full_name, full_name_ml").in("id", missing)
+    ? await dbc.from("students").select("id, admission_no, full_name, full_name_ml, dob").in("id", missing)
     : { data: [] as NonNullable<typeof classStudents> };
 
   const students: ResultStudent[] = [...(classStudents ?? []), ...(extra ?? [])].map((s) => ({
-    id: s.id, name: s.full_name, nameMl: s.full_name_ml, admissionNo: s.admission_no,
+    id: s.id, name: s.full_name, nameMl: s.full_name_ml, admissionNo: s.admission_no, dob: s.dob,
   }));
   const subj = (subjects ?? []).map((s) => ({ id: s.id, name: s.name, max: Number(s.max_marks) }));
-  const results = computeResults(students, subj, (marks ?? []).map((m) => ({ ...m, marks_obtained: Number(m.marks_obtained) })));
+  const results = computeResults(students, subj,
+    (marks ?? []).map((m) => ({ ...m, marks_obtained: Number(m.marks_obtained) })), examAbsent);
 
   // attendance in this class during the exam's academic year
   const year = exam.academic_years;
