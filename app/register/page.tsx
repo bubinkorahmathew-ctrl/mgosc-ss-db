@@ -1,6 +1,7 @@
 import { Suspense } from "react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { connection } from "next/server";
 import { Loader2 } from "lucide-react";
 import { Banner } from "@/components/brand";
 import { getPrayerUnits } from "@/lib/repo/students";
@@ -26,8 +27,9 @@ export default function RegisterPage() {
   );
 }
 
-/** The prayer units come from the database, so the form waits for them. */
+/** The prayer units come from the database, so the form waits for them (at request time, never during the build). */
 async function Form() {
+  await connection();
   const units = (await getPrayerUnits(null)).filter((u) => u.active);
   return <RegistrationForm prayerUnits={units.map(({ id, name }) => ({ id, name }))} />;
 }
