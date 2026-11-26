@@ -1,9 +1,8 @@
 import type { NextRequest } from "next/server";
 import { apiUser, pdfResponse, textResponse } from "@/lib/api";
-import { assertClassAccess, AuthError } from "@/lib/auth";
+import { AuthError } from "@/lib/auth";
 import { CERT_LABELS } from "@/lib/certificates";
-import { createClient } from "@/lib/db/server";
-import { PDF_CERTIFICATE_COLUMNS } from "@/lib/data/certificates";
+import { classCertificates } from "@/lib/repo/certificates";
 import { renderCertificates } from "@/lib/pdf/certificate";
 import { uuid } from "@/lib/validation/common";
 import { certificateTypeEnum } from "@/lib/validation/certificates";
@@ -24,21 +23,16 @@ export async function GET(req: NextRequest) {
   const type = certificateTypeEnum.safeParse(sp.get("type"));
   if (!classId.success || !type.success) return textResponse(400, "Choose a class and a certificate type.");
 
+  let data;
   try {
-    await assertClassAccess(user, classId.data);
+    data = await classCertificates(user, classId.data, type.data, MAX_BULK + 1);
   } catch (e) {
     if (e instanceof AuthError) return textResponse(403, e.message);
     throw e;
   }
-
-  const dbc = await createClient();
-  const { data, error } = await dbc.from("certificates").select(PDF_CERTIFICATE_COLUMNS)
-    .eq("class_id", classId.data).eq("type", type.data).eq("revoked", false)
-    .order("student_name").order("certificate_no").limit(MAX_BULK + 1);
-  if (error) return textResponse(500, "Could not load certificates.");
-  if (!data?.length) return textResponse(404, `No ${CERT_LABELS[type.data].toLowerCase()} certificates for this class yet.`);
+  if (!data.length) return textResponse(404, `No ${CERT_LABELS[type.data].toLowerCase()} certificates for this class yet.`);
   if (data.length > MAX_BULK) return textResponse(413, `More than ${MAX_BULK} certificates. Please print them in smaller groups.`);
 
-  const buf = await renderCertificates(data.map((c) => ({ ...c, key: c.id })));
+  const buf = await renderCertificates(user, data.map((c) => ({ ...c, key: c.id })));
   return pdfResponse(buf, `${CERT_LABELS[type.data]} certificates ${data[0].class_name} (${data.length}).pdf`, sp.has("download"));
 }

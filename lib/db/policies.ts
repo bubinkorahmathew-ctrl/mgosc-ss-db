@@ -10,6 +10,8 @@
  *   teacher      own classes: add students; record attendance (up to 14 days back), exam
  *                attendance, marks, activities.
  *   everyone     reads prayer_units (the public registration form lists them); admins write them.
+ *   staff        read grade_scales; teachers read their classes' toppers. Only admins write
+ *                either (only admins confirm toppers).
  *                They see their classes' certificates but only admins issue them.
  *
  * Deliberately stricter than Postgres was, for deactivated accounts only: they can still read
@@ -43,6 +45,8 @@ const VISIBLE: Partial<Record<TableName, string>> = {
   profiles: `t.id = ? or t.id in (select co.teacher_id from class_teachers co where co.class_id in (${MY_CLASSES}))`,
   academic_years: IS_ACTIVE,
   subjects: IS_ACTIVE,
+  grade_scales: IS_ACTIVE,
+  toppers: `t.class_id in (${MY_CLASSES})`,
   school_settings: IS_ACTIVE,
   classes: `t.id in (${MY_CLASSES})`,
   class_teachers: `t.class_id in (${MY_CLASSES})`,

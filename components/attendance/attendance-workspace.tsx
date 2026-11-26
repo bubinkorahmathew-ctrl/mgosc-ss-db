@@ -1,7 +1,7 @@
-import { createClient } from "@/lib/db/server";
-import { getClassStudents, getTeacherClassContext } from "@/lib/data/teacher-context";
+import type { CurrentUser } from "@/lib/auth";
+import { getClassStudents, getTeacherClassContext } from "@/lib/repo/teacher-context";
+import { monthAttendance, teacherAttendanceFrom } from "@/lib/repo/teaching";
 import { formatDate, todayISO } from "@/lib/dates";
-import { teacherAttendanceFrom } from "@/lib/db/policies";
 import { TEACHER_ATTENDANCE_DAYS } from "@/lib/config";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { ClassSwitcher } from "@/components/teacher/class-switcher";
@@ -18,8 +18,8 @@ const validDate = (v?: string) => !!v && /^\d{4}-\d{2}-\d{2}$/.test(v) && !Numbe
  * The attendance page for teachers (own classes, 14 days back) and admins (any class, any date):
  * a month calendar, and the selected day's list.
  */
-export async function AttendanceWorkspace({ sp, admin }: { sp: SP; admin: boolean }) {
-  const { classes, selected } = await getTeacherClassContext(sp.class);
+export async function AttendanceWorkspace({ user, sp, admin }: { user: CurrentUser; sp: SP; admin: boolean }) {
+  const { classes, selected } = await getTeacherClassContext(user, sp.class);
   if (!selected) return <EmptyState title={admin ? "There are no classes yet." : "No class is assigned to you yet."} />;
 
   const today = todayISO();
@@ -30,13 +30,10 @@ export async function AttendanceWorkspace({ sp, admin }: { sp: SP; admin: boolea
     ?? (askedMonth && /^\d{4}-(0[1-9]|1[0-2])$/.test(askedMonth) && askedMonth <= today.slice(0, 7) ? askedMonth : today.slice(0, 7));
   const editableFrom = admin ? null : teacherAttendanceFrom();
 
-  const dbc = await createClient();
-  const [students, { data: monthRows, error }] = await Promise.all([
-    getClassStudents(selected.id),
-    dbc.from("attendance").select("student_id, date, status, remark").eq("class_id", selected.id)
-      .gte("date", `${month}-01`).lt("date", `${shiftMonth(month, 1)}-01`).limit(20000),
+  const [students, monthRows] = await Promise.all([
+    getClassStudents(user, selected.id),
+    monthAttendance(user, selected.id, month, shiftMonth(month, 1)),
   ]);
-  if (error) throw error;
 
   const days: Record<string, DaySummary> = {};
   for (const r of monthRows ?? []) {

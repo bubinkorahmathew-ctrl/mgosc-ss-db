@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft, Pencil } from "lucide-react";
-import { getStudentProfile } from "@/lib/data/student-profile";
-import { getClassOptions } from "@/lib/data/classes";
+import { getStudentProfile } from "@/lib/repo/student-profile";
+import { getClassOptions } from "@/lib/repo/classes";
 import { requireRole } from "@/lib/auth";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
@@ -13,9 +13,10 @@ import { StudentAdminActions } from "./student-admin-actions";
 export const metadata: Metadata = { title: "Student" };
 
 export default async function AdminStudentPage({ params }: PageProps<"/admin/students/[id]">) {
+  const user = await requireRole("headmaster");
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const [user, profile, classes] = await Promise.all([requireRole("headmaster"), getStudentProfile(id), getClassOptions()]);
+  const [profile, classes] = await Promise.all([getStudentProfile(user, id), getClassOptions(user)]);
   if (!profile) notFound();
   const s = profile.student;
 

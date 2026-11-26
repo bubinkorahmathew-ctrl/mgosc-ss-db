@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { requireRole } from "@/lib/auth";
-import { listAdminAccounts } from "@/lib/authn/admins";
-import { getDatabase } from "@/lib/db";
+import { listAdmins } from "@/lib/repo/accounts";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -13,7 +12,7 @@ export const metadata: Metadata = { title: "Admins" };
 export default async function AdminsPage() {
   const user = await requireRole("headmaster");
   if (!user.superAdmin) redirect("/admin");
-  const admins = await listAdminAccounts(getDatabase(), user.id);
+  const admins = await listAdmins(user);
 
   return (
     <>

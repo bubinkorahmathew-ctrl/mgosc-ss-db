@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
+import { requireRole } from "@/lib/auth";
 import Link from "next/link";
 import { UserPlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { getPrayerUnits, listStudents } from "@/lib/data/students";
-import { getTeacherClassContext } from "@/lib/data/teacher-context";
+import { getPrayerUnits, listStudents } from "@/lib/repo/students";
+import { getTeacherClassContext } from "@/lib/repo/teacher-context";
 import { studentFiltersSchema } from "@/lib/validation/student";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { ClassSwitcher } from "@/components/teacher/class-switcher";
@@ -13,13 +14,14 @@ import { Pagination, StudentsTable } from "@/components/students/students-table"
 export const metadata: Metadata = { title: "Students" };
 
 export default async function TeacherStudentsPage({ searchParams }: PageProps<"/teacher/students">) {
+  const user = await requireRole("teacher");
   const sp = await searchParams;
-  const { classes, selected } = await getTeacherClassContext(sp.class);
+  const { classes, selected } = await getTeacherClassContext(user, sp.class);
   if (!selected) return <EmptyState title="No class is assigned to you yet." />;
 
   // class filter is forced to the selected (own) class; RLS also limits rows
   const filters = { ...studentFiltersSchema.parse(sp), class_id: selected.id };
-  const [result, prayerUnits] = await Promise.all([listStudents(filters), getPrayerUnits()]);
+  const [result, prayerUnits] = await Promise.all([listStudents(user, filters), getPrayerUnits(user)]);
 
   return (
     <>

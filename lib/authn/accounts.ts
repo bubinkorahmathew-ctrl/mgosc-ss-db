@@ -65,7 +65,7 @@ export async function createTeacherAccount(
     await validateRows(tx, "profiles", [{ full_name: input.full_name }], NO_FACTS, null);
     await tx.query("insert into profiles (id, full_name, phone, twelfth_passed_year, role) values (?, ?, ?, ?, 'teacher')",
       [id, input.full_name, input.phone, input.twelfth_passed_year ?? null]);
-    await tx.query("insert into users (id, email, password_hash) values (?, ?, ?)", [id, input.email, hash]);
+    await tx.query("insert into users (id, email, password_hash, password_changed_at, must_change_password) values (?, ?, ?, ?, true)", [id, input.email, hash, new Date()]);
     await syncClasses(tx, id, input.class_ids);
   });
   return { id, password };
@@ -100,8 +100,8 @@ export async function setTeacherAccountActive(
     await requireHeadmaster(tx, actorId);
     await lockTeacher(tx, id);
     await tx.query("update profiles set active = ? where id = ?", [active, id]);
-    // deleted, not just blocked, so re-activation doesn't revive an old device's session
-    if (!active) await tx.query("delete from sessions where user_id = ?", [id]);
+    // sign-ins older than password_changed_at are refused: re-activating later doesn't revive them
+    if (!active) await tx.query("update users set password_changed_at = ? where id = ?", [new Date(), id]);
   });
 }
 
@@ -115,8 +115,8 @@ export async function resetTeacherAccountPassword(database: Database, actorId: s
     await lockTeacher(tx, id);
     const [login] = await tx.query("select id from users where id = ? for update", [id]);
     if (!login) throw new DbError("this teacher has no login", "P0001");
-    await tx.query("update users set password_hash = ?, password_changed_at = ? where id = ?", [hash, new Date(), id]);
-    await tx.query("delete from sessions where user_id = ?", [id]);
+    // every existing sign-in is older than this, so it stops working
+    await tx.query("update users set password_hash = ?, password_changed_at = ?, must_change_password = true where id = ?", [hash, new Date(), id]);
   });
   return password;
 }

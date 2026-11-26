@@ -90,7 +90,7 @@ export function applyUpdateRules(table: TableName, before: Row[], patch: Row, ac
     // trg_certificate_freeze
     for (const column of Object.keys(patch)) {
       if (column === "revoked" || column === "revoked_at" || !changes(column)) continue;
-      const unlink = ["exam_id", "activity_id", "class_id", "issued_by"].includes(column) && patch[column] === null;
+      const unlink = ["exam_id", "activity_id", "topper_id", "class_id", "issued_by"].includes(column) && patch[column] === null;
       if (!unlink) throw notAllowed("issued certificates cannot be edited; revoke and issue a new one");
     }
     // trg_certificate_revoke: the time is never taken from the caller
@@ -230,12 +230,39 @@ export async function validateRows(
         if (row.max_marks !== undefined && !(Math.round(Number(row.max_marks) * 100) > 0)) {
           throw violates("max_marks must be greater than 0");
         }
+        checkRange(row, "pass_percent", 0, 100);
+        break;
+      case "exams":
+        checkRange(row, "weight", 0, 100);
+        break;
+      case "grade_scales":
+        checkRange(row, "min_percent", 0, 100);
+        checkRange(row, "max_percent", 0, 100);
+        checkLength(row, "grade", 1, 8);
+        checkLength(row, "remark", 0, 60);
+        if (row.min_percent !== undefined && row.max_percent !== undefined && Number(row.min_percent) > Number(row.max_percent)) {
+          throw violates("min_percent must not be above max_percent");
+        }
+        break;
+      case "toppers":
+        checkRange(row, "value", 0, 100);
+        if (typeof row.period_start === "string" && typeof row.period_end === "string" && row.period_end < row.period_start) {
+          throw violates("period_end must not be before period_start");
+        }
         break;
       case "school_settings":
         if (row.id !== undefined && row.id !== 1) throw violates("there is only one settings row");
+        checkRange(row, "attendance_topper_min_pct", 0, 100);
         break;
     }
   }
+}
+
+function checkRange(row: Row, column: string, min: number, max: number) {
+  const value = row[column];
+  if (value === undefined || value === null) return;
+  const n = Number(value);
+  if (!(n >= min && n <= max)) throw violates(`${column} must be between ${min} and ${max}`);
 }
 
 function checkLength(row: Row, column: string, min: number, max: number) {
@@ -281,6 +308,25 @@ export async function completeCertificates(tx: Executor, rows: Row[], facts: Fac
       if (row.activity_id && found.find((a) => a.id === row.activity_id)?.class_id !== row.class_id) {
         throw violates("activity is not for this class");
       }
+    }
+  }
+
+  // a topper certificate names a confirmed topper of the same student, class and kind
+  const topperIds = ids(rows, "topper_id");
+  const toppers = topperIds.length
+    ? await tx.query<{ id: string; student_id: string; class_id: string; type: string }>(
+      "select id, student_id, class_id, type from toppers where id in (?) for update", [topperIds])
+    : [];
+  for (const row of rows) {
+    const isTopperType = row.type === "class_topper" || row.type === "attendance_topper";
+    if (!row.topper_id) {
+      if (isTopperType) throw violates("a topper certificate needs a confirmed topper");
+      continue;
+    }
+    const t = toppers.find((x) => x.id === row.topper_id);
+    const kind = row.type === "class_topper" ? "marks" : row.type === "attendance_topper" ? "attendance" : null;
+    if (!t || t.student_id !== row.student_id || t.class_id !== row.class_id || t.type !== kind) {
+      throw violates("the topper does not match this certificate");
     }
   }
 

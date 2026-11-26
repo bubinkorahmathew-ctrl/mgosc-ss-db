@@ -7,7 +7,7 @@ English name plus optional Malayalam name.
 
 ## Files
 - components/certificate/Certificate.tsx  – the design (CertificatePage, CertificateDocument, CertificateBundle)
-- public/fonts/certificate/*.woff          – Cinzel, Great Vibes, Cormorant Garamond, Noto Serif Malayalam (open fonts, SIL OFL)
+- public/fonts/certificate/*.woff          – Cinzel, Dancing Script (the name; replaced Great Vibes at the school's request), Cormorant Garamond, Noto Serif Malayalam (open fonts, SIL OFL)
 - public/images/church-header.jpg          – header banner
 - scripts/render-sample.tsx                – renders sample PDFs (run: npx tsx scripts/render-sample.tsx, adjust paths)
 - samples/                                 – sample PDFs, including a 3-page bulk test

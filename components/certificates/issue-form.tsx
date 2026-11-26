@@ -8,7 +8,7 @@ import { ArrowLeft, Award, Eye, Loader2, RotateCcw } from "lucide-react";
 import { fetchPdfBlobUrl, PdfActions, PdfFrame } from "./pdf-actions";
 import { issueCertificates } from "@/actions/certificates";
 import {
-  CERT_LABELS, CERTIFICATE_TYPES, DEFAULT_TITLES, PLACEHOLDER_HELP, PLACEHOLDERS, fillTemplate,
+  CERT_LABELS, CERTIFICATE_TYPES, DEFAULT_TITLES, PLACEHOLDER_HELP, PLACEHOLDERS, TOPPER_TYPES, fillTemplate,
 } from "@/lib/certificates";
 import type { CertificateType } from "@/lib/db/types";
 import { todayISO } from "@/lib/dates";
@@ -19,23 +19,31 @@ import { CheckboxField, Field, NativeSelect } from "@/components/form/field";
 
 type Opt = { id: string; label: string };
 
-export function IssueForm({ classes, classId, className, yearName, students, exams, activities, wording, listHref }: {
+/** A confirmed topper the certificate is issued for: fixes the type, the student and the values. */
+export type TopperPick = {
+  id: string; type: "class_topper" | "attendance_topper"; studentId: string; studentName: string;
+  what: string; value: number; grade: string | null;
+};
+
+export function IssueForm({ classes, classId, className, yearName, students, exams, activities, wording, listHref, topper }: {
   classes: Opt[]; classId: string; className: string; yearName: string;
   students: { id: string; name: string; admissionNo: string }[];
   exams: (Opt & { title: string })[]; activities: (Opt & { title: string })[];
   wording: Partial<Record<CertificateType, string>>;
   listHref: string;
+  topper?: TopperPick;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const [pending, start] = useTransition();
-  const [type, setType] = useState<CertificateType>("completion");
-  const [title, setTitle] = useState(DEFAULT_TITLES.completion);
-  const [template, setTemplate] = useState(wording.completion ?? "");
+  const firstType: CertificateType = topper?.type ?? "completion";
+  const [type, setType] = useState<CertificateType>(firstType);
+  const [title, setTitle] = useState(DEFAULT_TITLES[firstType]);
+  const [template, setTemplate] = useState(wording[firstType] ?? "");
   const [examId, setExamId] = useState(exams[0]?.id ?? "");
   const [activityId, setActivityId] = useState(activities[0]?.id ?? "");
   const [issuedOn, setIssuedOn] = useState(todayISO());
-  const [selected, setSelected] = useState<string[]>([]);
+  const [selected, setSelected] = useState<string[]>(topper ? [topper.studentId] : []);
   const [errors, setErrors] = useState<Record<string, string[]>>();
   const [issued, setIssued] = useState<string[] | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -52,15 +60,20 @@ export function IssueForm({ classes, classId, className, yearName, students, exa
   const needsActivity = type === "participation";
   const examText = needsExam ? exams.find((e) => e.id === examId)?.title
     : needsActivity ? activities.find((a) => a.id === activityId)?.title : undefined;
-  const first = students.find((s) => s.id === selected[0]) ?? students[0];
+  const first = useMemo(() => (topper ? { name: topper.studentName } : students.find((s) => s.id === selected[0]) ?? students[0]),
+    [topper, students, selected]);
   const preview = useMemo(() => fillTemplate(template, {
     student_name: first?.name ?? "Student name", class: className, year: yearName,
-    exam: examText, rank: needsExam ? "(rank)" : undefined,
-  }), [template, first, className, yearName, examText, needsExam]);
+    exam: topper?.type === "class_topper" ? topper.what : examText,
+    rank: needsExam ? "(rank)" : topper?.type === "class_topper" ? "1st" : undefined,
+    grade: topper?.type === "class_topper" ? topper.grade ?? undefined : needsExam ? "(grade)" : undefined,
+    percentage: topper?.type === "class_topper" ? `${topper.value.toFixed(2)}%` : needsExam ? "(percentage)" : undefined,
+    attendance_percent: topper?.type === "attendance_topper" ? `${topper.value}%` : "(attendance %)",
+  }), [template, first, className, yearName, examText, needsExam, topper]);
 
   const payload = () => ({
     type, class_id: classId, student_ids: selected, title, template, issued_on: issuedOn,
-    exam_id: needsExam ? examId : null, activity_id: needsActivity ? activityId : null,
+    exam_id: needsExam ? examId : null, activity_id: needsActivity ? activityId : null, topper_id: topper?.id ?? null,
   });
 
   /** Step 2: the PDF exactly as it will be issued, nothing saved yet. */
@@ -123,17 +136,29 @@ export function IssueForm({ classes, classId, className, yearName, students, exa
     <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field id="ci-class" label="Class">
-            <NativeSelect id="ci-class" value={classId}
-              onChange={(e) => router.replace(`${pathname}?class=${e.target.value}`)}>
-              {classes.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
-            </NativeSelect>
-          </Field>
-          <Field id="ci-type" label="Certificate type">
-            <NativeSelect id="ci-type" value={type} onChange={(e) => changeType(e.target.value as CertificateType)}>
-              {CERTIFICATE_TYPES.map((t) => <option key={t} value={t}>{CERT_LABELS[t]}</option>)}
-            </NativeSelect>
-          </Field>
+          {topper ? (
+            <div className="rounded-lg border border-amber-300 bg-amber-50 p-3 text-sm sm:col-span-2">
+              <p className="font-medium">{CERT_LABELS[topper.type]} certificate for {topper.studentName}</p>
+              <p className="text-muted-foreground">
+                {topper.what} · {topper.value}%{topper.grade ? ` · grade ${topper.grade}` : ""} · {className} · {yearName}.{" "}
+                <Link href={pathname} className="text-primary underline">Issue a different certificate</Link>
+              </p>
+            </div>
+          ) : (
+            <>
+              <Field id="ci-class" label="Class">
+                <NativeSelect id="ci-class" value={classId}
+                  onChange={(e) => router.replace(`${pathname}?class=${e.target.value}`)}>
+                  {classes.map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+                </NativeSelect>
+              </Field>
+              <Field id="ci-type" label="Certificate type" hint="Topper certificates are issued from the Toppers page.">
+                <NativeSelect id="ci-type" value={type} onChange={(e) => changeType(e.target.value as CertificateType)}>
+                  {CERTIFICATE_TYPES.filter((t) => !TOPPER_TYPES.includes(t)).map((t) => <option key={t} value={t}>{CERT_LABELS[t]}</option>)}
+                </NativeSelect>
+              </Field>
+            </>
+          )}
           {needsExam && (
             <Field id="ci-exam" label="Exam" required error={errors?.exam_id?.[0]} hint="Each student's rank is filled in automatically.">
               {exams.length ? (
@@ -177,7 +202,7 @@ export function IssueForm({ classes, classId, className, yearName, students, exa
         </div>
       </div>
 
-      <fieldset className="space-y-2">
+      <fieldset className="space-y-2" disabled={!!topper}>
         <legend className="mb-2 flex w-full items-center justify-between text-sm font-medium">
           Students ({selected.length} of {students.length})
           {students.length > 0 && (
@@ -189,7 +214,7 @@ export function IssueForm({ classes, classId, className, yearName, students, exa
         </legend>
         {!students.length ? <p className="text-sm text-muted-foreground">No active students in this class.</p> : (
           <div className="grid max-h-[28rem] gap-2 overflow-y-auto pr-1">
-            {students.map((s) => (
+            {students.filter((s) => !topper || s.id === topper.studentId).map((s) => (
               <CheckboxField key={s.id} id={`ci-s-${s.id}`} checked={selected.includes(s.id)} onChange={() => toggle(s.id)}
                 label={<>{s.name} <span className="text-xs text-muted-foreground">{s.admissionNo}</span></>} />
             ))}

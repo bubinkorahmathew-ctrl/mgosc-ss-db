@@ -9,6 +9,9 @@ export const subjectSchema = z.object({
   id: uuid.optional(),
   name: requiredText("Subject name", 80),
   max_marks: maxMarks,
+  pass_percent: z.number({ error: "Enter the pass percentage." })
+    .refine((v) => Number.isFinite(v) && v >= 0 && v <= 100 && Math.abs(Math.round(v * 100) - v * 100) < 1e-6,
+      "Pass percentage must be between 0 and 100.").default(40),
   sort_order: z.number().int().min(0).max(999).default(0),
 });
 export type SubjectInput = z.input<typeof subjectSchema>;
@@ -28,6 +31,9 @@ export const updateExamSchema = z.object({
   id: uuid,
   name: requiredText("Exam name", 80),
   exam_date: examDate,
+  /** weight in an annual result; 1 = counts like every other exam */
+  weight: z.number({ error: "Enter the weight." })
+    .refine((v) => Number.isFinite(v) && v >= 0 && v <= 100, "Weight must be between 0 and 100.").default(1),
 });
 
 export const promotionSchema = z.object({
@@ -50,6 +56,8 @@ export const settingsSchema = z.object({
     participation: optionalText("Wording", 1000),
     memory_verse: optionalText("Wording", 1000),
     custom: optionalText("Wording", 1000),
+    class_topper: optionalText("Wording", 1000),
+    attendance_topper: optionalText("Wording", 1000),
   }),
 });
 export type SettingsInput = z.input<typeof settingsSchema>;

@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { createClient } from "@/lib/db/server";
-import { getClassStudents, getTeacherClassContext } from "@/lib/data/teacher-context";
+import { requireRole } from "@/lib/auth";
+import { getClassStudents, getTeacherClassContext } from "@/lib/repo/teacher-context";
+import { listActivities } from "@/lib/repo/teaching";
 import { formatDate, todayISO } from "@/lib/dates";
 import { ACTIVITY_LABELS } from "@/lib/validation/teacher";
 import { EmptyState, PageHeader } from "@/components/page-header";
@@ -10,20 +11,15 @@ import { ActivityDialog, ActivityStudentFilter } from "./activity-dialog";
 export const metadata: Metadata = { title: "Activities" };
 
 export default async function ActivitiesPage({ searchParams }: PageProps<"/teacher/activities">) {
+  const user = await requireRole("teacher");
   const sp = await searchParams;
-  const { classes, selected } = await getTeacherClassContext(sp.class);
+  const { classes, selected } = await getTeacherClassContext(user, sp.class);
   if (!selected) return <EmptyState title="No class is assigned to you yet." />;
 
-  const students = await getClassStudents(selected.id);
+  const students = await getClassStudents(user, selected.id);
   const studentId = typeof sp.student === "string" && students.some((s) => s.id === sp.student) ? sp.student : undefined;
 
-  const dbc = await createClient();
-  let q = dbc.from("activities")
-    .select("id, type, title, activity_date, score, notes, student_id, students(full_name)")
-    .eq("class_id", selected.id)
-    .order("activity_date", { ascending: false }).order("created_at", { ascending: false }).limit(200);
-  if (studentId) q = q.or([["student_id", "eq", studentId], ["student_id", "is", null]]);
-  const { data: activities } = await q;
+  const activities = await listActivities(user, selected.id, studentId);
 
   const studentOptions = students.map((s) => ({ id: s.id, label: s.full_name }));
 
@@ -34,7 +30,7 @@ export default async function ActivitiesPage({ searchParams }: PageProps<"/teach
       <ClassSwitcher classes={classes} selectedId={selected.id} />
       <ActivityStudentFilter students={studentOptions} selectedId={studentId} />
 
-      {!activities?.length ? (
+      {!activities.length ? (
         <EmptyState title="No activities yet.">
           Record competitions, memory verses, events or notes for the class or one student.
         </EmptyState>

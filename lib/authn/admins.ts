@@ -44,7 +44,7 @@ export async function createAdminAccount(
     const [taken] = await tx.query("select id from users where email = ? for update", [input.email]);
     if (taken) throw new DbError("duplicate key: email already exists", "23505");
     await tx.query("insert into profiles (id, full_name, role) values (?, ?, 'headmaster')", [id, input.full_name]);
-    await tx.query("insert into users (id, email, password_hash) values (?, ?, ?)", [id, input.email, hash]);
+    await tx.query("insert into users (id, email, password_hash, password_changed_at, must_change_password) values (?, ?, ?, ?, true)", [id, input.email, hash, new Date()]);
   });
   return password;
 }
@@ -55,7 +55,8 @@ export async function setAdminAccountActive(database: Database, actorId: string,
     await requireSuperAdmin(tx, actorId);
     await lockAdmin(tx, id);
     await tx.query("update profiles set active = ? where id = ?", [active, id]);
-    if (!active) await tx.query("delete from sessions where user_id = ?", [id]);
+    // sign-ins older than password_changed_at are refused: re-activating later doesn't revive them
+    if (!active) await tx.query("update users set password_changed_at = ? where id = ?", [new Date(), id]);
   });
 }
 
@@ -66,8 +67,7 @@ export async function resetAdminAccountPassword(database: Database, actorId: str
   await database.transaction(async (tx) => {
     await requireSuperAdmin(tx, actorId);
     await lockAdmin(tx, id);
-    await tx.query("update users set password_hash = ?, password_changed_at = ? where id = ?", [hash, new Date(), id]);
-    await tx.query("delete from sessions where user_id = ?", [id]);
+    await tx.query("update users set password_hash = ?, password_changed_at = ?, must_change_password = true where id = ?", [hash, new Date(), id]);
   });
   return password;
 }

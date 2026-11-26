@@ -3,11 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Check, Minus, School } from "lucide-react";
 import { requireRole } from "@/lib/auth";
-import { listAdminAccounts } from "@/lib/authn/admins";
-import { listTeacherEmails } from "@/lib/authn/accounts";
-import { getDatabase } from "@/lib/db";
-import { createDb } from "@/lib/db/client";
-import { getClassOptions } from "@/lib/data/classes";
+import { listAdmins, teachersPage } from "@/lib/repo/accounts";
 import { RIGHTS, ROLES, type RightLevel } from "@/lib/roles";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,15 +22,7 @@ function Level({ level }: { level: RightLevel }) {
 export default async function RightsPage() {
   const user = await requireRole("headmaster");
   if (!user.superAdmin) redirect("/admin");
-  const database = getDatabase();
-  const db = createDb(database, user.id);
-  const [admins, teachers, assignments, classes, emails] = await Promise.all([
-    listAdminAccounts(database, user.id),
-    db.select("profiles", { where: [["role", "eq", "teacher"]], order: [{ column: "active", ascending: false }, { column: "full_name" }] }),
-    db.select("class_teachers"),
-    getClassOptions({ currentOnly: true }),
-    listTeacherEmails(database, user.id),
-  ]);
+  const [admins, { teachers, assignments, classes, emails }] = await Promise.all([listAdmins(user), teachersPage(user)]);
   const classLabel = new Map(classes.map((c) => [c.id, c.label]));
 
   const people = [

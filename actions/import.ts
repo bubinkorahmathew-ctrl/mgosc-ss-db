@@ -2,9 +2,11 @@
 
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
-import { assertRole, AuthError, getUserDb } from "@/lib/auth";
+import { assertRole, AuthError } from "@/lib/auth";
 import { todayISO } from "@/lib/dates";
-import { loadClass, loadExam } from "@/lib/import/context";
+import {
+  activePrayerUnits, insertStudents, loadClass, loadExam, studentsBornOn, upsertAttendance, upsertMarks,
+} from "@/lib/repo/import";
 import {
   markExistingStudents, parseAttendance, parseMarks, parseStudents, studentKey, type ImportReport,
 } from "@/lib/import/parse";
@@ -59,17 +61,14 @@ export async function importStudents(formData: FormData): Promise<ActionResult<I
       throw new AuthError("Choose one of your classes.");
     }
 
-    const db = await getUserDb();
-    const units = await db.select("prayer_units", { where: [["active", "eq", true]] });
-    let parsed = parseStudents(sheet, units);
+    let parsed = parseStudents(sheet, await activePrayerUnits(user));
     if (parsed.students.length) {
-      const dobs = [...new Set(parsed.students.map((s) => s.data.dob))];
-      const same = await db.select("students", { where: [["dob", "in", dobs]] });
+      const same = await studentsBornOn(user, [...new Set(parsed.students.map((s) => s.data.dob))]);
       parsed = markExistingStudents(parsed, new Map(same.map((s) => [studentKey(s.full_name, s.dob), s.admission_no])));
     }
     if (mode === "check" || !canSave(parsed.report)) return finish(parsed.report, mode, "student", "students");
 
-    const rows = await db.insert("students", parsed.students.map((s) => ({ ...s.data, class_id: classId, status: "active" as const })));
+    const rows = await insertStudents(user, parsed.students.map((s) => s.data), classId);
     revalidatePath("/admin/students");
     revalidatePath("/admin");
     revalidatePath("/teacher/students");
@@ -91,8 +90,7 @@ export async function importMarks(formData: FormData): Promise<ActionResult<Impo
     const parsed = parseMarks(sheet, { subjects: exam.subjects, students: exam.students, existing: exam.saved });
     if (mode === "check" || !canSave(parsed.report)) return finish(parsed.report, mode, "student's marks are", "students' marks are");
 
-    const db = await getUserDb();
-    const rows = await db.upsert("marks", parsed.entries.map((e) => ({ ...e, is_absent: false, exam_id: exam.id, entered_by: user.id })));
+    const rows = await upsertMarks(user, exam.id, parsed.entries);
     revalidatePath("/teacher/marks");
     revalidatePath("/admin/exams");
     revalidatePath("/admin/report-cards");
@@ -110,8 +108,7 @@ export async function importAttendance(formData: FormData): Promise<ActionResult
     const parsed = parseAttendance(sheet, { students: cls.students, today: todayISO() });
     if (mode === "check" || !canSave(parsed.report)) return finish(parsed.report, mode, "student's attendance is", "students' attendance is");
 
-    const db = await getUserDb();
-    const rows = await db.upsert("attendance", parsed.entries.map((e) => ({ ...e, class_id: cls.id, marked_by: user.id })));
+    const rows = await upsertAttendance(user, cls.id, parsed.entries);
     revalidatePath("/teacher/attendance");
     revalidatePath("/teacher");
     revalidatePath("/admin");

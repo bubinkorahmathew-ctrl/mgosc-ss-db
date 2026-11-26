@@ -1,10 +1,15 @@
 import { randomUUID } from "node:crypto";
 import type { CertificateType } from "@/lib/db/types";
 import type { Database } from "./connection";
-import { DbError, invalid, notAllowed } from "./errors";
+import { scaleProblems, type GradeBand } from "@/lib/grades";
+import { DbError, invalid, notAllowed, violates } from "./errors";
 import { currentNumberYear, formatNumber, reserveNumbers, type CounterKind } from "./numbers";
 import { lockActor } from "./policies";
-import { toId, type Row } from "./values";
+import { toDb, toId, type Row } from "./values";
+
+export type TopperScope = {
+  class_id: string; type: "marks" | "attendance"; exam_id: string | null; period_start: string; period_end: string;
+};
 
 const COPIED_FROM_REGISTRATION = [
   "full_name", "full_name_ml", "dob", "gender", "father_name", "mother_name",
@@ -62,6 +67,65 @@ export function createFunctions(database: Database, uid: string | null) {
           "update registrations set status = 'approved', reviewed_by = ?, reviewed_at = ?, student_id = ? where id = ?",
           [actor.id, now, studentId, regId]);
         return studentId;
+      });
+    },
+
+    /** The whole grade scale at once, all or nothing, so it is never half-edited. Admins only. */
+    async replaceGradeScales(bands: GradeBand[]): Promise<void> {
+      const problems = scaleProblems(bands);
+      if (problems.length) throw violates(problems[0]);
+      await database.transaction(async (tx) => {
+        const actor = await lockActor(tx, uid);
+        if (!actor.headmaster) throw notAllowed();
+        await tx.query("delete from grade_scales");
+        await tx.query(
+          "insert into grade_scales (id, min_percent, max_percent, grade, grade_point, remark, is_pass) values ?",
+          [bands.map((b) => [randomUUID(), b.min_percent, b.max_percent, b.grade.trim(), b.grade_point, b.remark, b.is_pass])]);
+      });
+    },
+
+    /**
+     * Confirm the toppers of one comparison (a class, a type, an exam or none, a period),
+     * replacing any earlier confirmation of the same comparison. Admins only. Every student must
+     * belong to the class or have results in it; the caller computed the values.
+     */
+    async confirmToppers(scope: TopperScope, picks: { student_id: string; value: number }[]): Promise<number> {
+      if (scope.type !== "marks" && scope.type !== "attendance") throw invalid("unknown topper type");
+      const classId = toId(scope.class_id);
+      const examId = scope.exam_id ? toId(scope.exam_id) : null;
+      for (const d of [scope.period_start, scope.period_end]) toDb("toppers", "period_start", d);
+      if (scope.period_end < scope.period_start) throw violates("period_end must not be before period_start");
+      return database.transaction(async (tx) => {
+        const actor = await lockActor(tx, uid);
+        if (!actor.headmaster) throw notAllowed();
+        const [cls] = await tx.query<{ academic_year_id: string }>("select academic_year_id from classes where id = ? for update", [classId]);
+        if (!cls) throw new DbError("class not found", "P0001");
+        if (examId) {
+          const [exam] = await tx.query<{ class_id: string }>("select class_id from exams where id = ? for update", [examId]);
+          if (exam?.class_id !== classId) throw violates("exam is not for this class");
+        }
+        await tx.query(
+          `delete from toppers where class_id = ? and type = ? and period_start = ? and period_end = ? and ${examId ? "exam_id = ?" : "exam_id is null"}`,
+          [classId, scope.type, scope.period_start, scope.period_end, ...(examId ? [examId] : [])]);
+        if (!picks.length) return 0;
+        // a topper is in the class, or was (results or attendance there) before moving on
+        const ids = [...new Set(picks.map((p) => toId(p.student_id)))];
+        const belong = await tx.query(
+          `select s.id from students s where s.id in (?) and (s.class_id = ?
+             or exists (select 1 from marks m join exams e on e.id = m.exam_id where m.student_id = s.id and e.class_id = ?)
+             or exists (select 1 from attendance a where a.student_id = s.id and a.class_id = ?))`,
+          [ids, classId, classId, classId]);
+        if (belong.length !== ids.length) throw violates("a topper is not a student of this class");
+        const now = new Date();
+        await tx.query(
+          "insert into toppers (id, class_id, academic_year_id, exam_id, period_start, period_end, type, student_id, value, confirmed_by, confirmed_at) values ?",
+          [picks.map((p) => {
+            const value = Number(p.value);
+            if (!(value >= 0 && value <= 100)) throw violates("value must be between 0 and 100");
+            return [randomUUID(), classId, cls.academic_year_id, examId, scope.period_start, scope.period_end, scope.type,
+              toId(p.student_id), value, actor.id, now];
+          })]);
+        return picks.length;
       });
     },
 

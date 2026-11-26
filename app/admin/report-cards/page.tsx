@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
-import { getAcademicYears } from "@/lib/data/classes";
-import { getClassExams, getExamResults } from "@/lib/data/results";
-import { createClient } from "@/lib/db/server";
-import { classLabel } from "@/lib/format";
+import { requireRole } from "@/lib/auth";
+import { getAcademicYears } from "@/lib/repo/classes";
+import { getClassExams, getExamResults, yearClassOptions } from "@/lib/repo/results";
 import { formatDate } from "@/lib/dates";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { UrlSelect } from "@/components/form/url-select";
@@ -11,20 +10,16 @@ import { ResultsView } from "@/components/results/results-view";
 export const metadata: Metadata = { title: "Report cards" };
 
 export default async function ReportCardsPage({ searchParams }: PageProps<"/admin/report-cards">) {
+  const user = await requireRole("headmaster");
   const sp = await searchParams;
-  const years = await getAcademicYears();
+  const years = await getAcademicYears(user);
   const year = years.find((y) => y.id === sp.year) ?? years.find((y) => y.is_current) ?? years[0];
 
-  const dbc = await createClient();
-  const { data: classRows } = year
-    ? await dbc.from("classes").select("id, name, section").eq("academic_year_id", year.id)
-    : { data: [] };
-  const classes = (classRows ?? []).map((c) => ({ value: c.id, label: classLabel(c) }))
-    .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
+  const classes = year ? await yearClassOptions(user, year.id) : [];
   const cls = classes.find((c) => c.value === sp.class) ?? classes[0];
-  const exams = cls ? await getClassExams(cls.value) : [];
+  const exams = cls ? await getClassExams(user, cls.value) : [];
   const exam = exams.find((e) => e.id === sp.exam) ?? exams[0];
-  const data = exam ? await getExamResults(exam.id) : null;
+  const data = exam ? await getExamResults(user, exam.id) : null;
 
   return (
     <>

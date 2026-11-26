@@ -30,7 +30,13 @@ export function parseStudentReport(sp: SP): StudentReportFilters {
   };
 }
 
-export type RangeFilters = { class_id?: string; from: string; to: string; type?: string };
+export type RangeFilters = {
+  class_id?: string; from: string; to: string; type?: string;
+  /** attendance: the "below X%" line (default 75) and whether to show only those below it */
+  below: number; onlyBelow: boolean;
+};
+
+export const DEFAULT_ATTENDANCE_BELOW = 75;
 
 export function parseRange(sp: SP, defaults: { from: string; to: string }): RangeFilters {
   let from = ok(isoDate, one(sp.from)) ?? defaults.from;
@@ -40,6 +46,8 @@ export function parseRange(sp: SP, defaults: { from: string; to: string }): Rang
     class_id: ok(uuid, one(sp.class)),
     from, to,
     type: ok(z.enum(["competition", "memory_verse", "event", "note"]), one(sp.type)),
+    below: ok(z.coerce.number().min(1).max(100), one(sp.below)) ?? DEFAULT_ATTENDANCE_BELOW,
+    onlyBelow: one(sp.only_below) === "1",
   };
 }
 

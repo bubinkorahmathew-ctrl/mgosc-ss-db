@@ -1,7 +1,8 @@
 /** The chainable client used by the pages: every shape they use, and that joins can't leak. */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
 import { createQueryClient } from "@/lib/db/query";
-import { readSignature, removeSignature, saveSignature } from "@/lib/branding";
+import { readSignature, removeSignature, saveSignature } from "@/lib/repo/branding";
+import { viewer } from "./viewers";
 import { todayISO } from "@/lib/dates";
 import { createTiDbTest, IDS, PRAYER_UNIT, type Sandbox, type TiDbTest } from "./harness";
 
@@ -130,16 +131,21 @@ describe("writes and errors", () => {
 describe("signature", () => {
   const PNG = Buffer.concat([Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]), Buffer.from([0, 255, 39, 92, 63])]);
   it("super admin saves, replaces and removes it", async () => {
-    await saveSignature(s.database, IDS.headmaster, PNG);
-    await saveSignature(s.database, IDS.headmaster, PNG);
-    const image = await readSignature(s.database);
+    s.use();
+    const head = viewer(IDS.headmaster);
+    await saveSignature(head, PNG);
+    await saveSignature(head, PNG);
+    const image = await readSignature(head);
     expect(image!.mime).toBe("image/png");
     expect(Buffer.compare(image!.data, PNG)).toBe(0);
-    await removeSignature(s.database, IDS.headmaster);
-    expect(await readSignature(s.database)).toBeNull();
+    await removeSignature(head);
+    expect(await readSignature(head)).toBeNull();
   });
   it("nobody else, and images only", async () => {
-    await expect(saveSignature(s.database, IDS.teacher1, PNG)).rejects.toThrow(/not allowed/);
-    await expect(saveSignature(s.database, IDS.headmaster, Buffer.from("<svg onload=alert(1)>"))).rejects.toThrow(/PNG or JPG/);
+    s.use();
+    await expect(saveSignature(viewer(IDS.teacher1, "teacher"), PNG)).rejects.toThrow(/not allowed/);
+    // a plain admin (not the super admin) can't either
+    await expect(saveSignature(viewer(IDS.headmaster, "headmaster", false), PNG)).rejects.toThrow(/super admin/);
+    await expect(saveSignature(viewer(IDS.headmaster), Buffer.from("<svg onload=alert(1)>"))).rejects.toThrow(/PNG or JPG/);
   });
 });

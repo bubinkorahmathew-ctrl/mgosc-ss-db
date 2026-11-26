@@ -35,17 +35,19 @@ function useRun() {
 }
 
 export function SubjectDialog({ subject, nextOrder = 0 }: {
-  subject?: { id: string; name: string; max_marks: number; sort_order: number }; nextOrder?: number;
+  subject?: { id: string; name: string; max_marks: number; pass_percent: number; sort_order: number }; nextOrder?: number;
 }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(subject?.name ?? "");
   const [max, setMax] = useState(String(subject?.max_marks ?? 50));
+  const [pass, setPass] = useState(String(subject?.pass_percent ?? 40));
   const [order, setOrder] = useState(String(subject?.sort_order ?? nextOrder));
   const [errors, setErrors] = useState<Errors>();
   const { pending, run } = useRun();
+  const passMarks = Number(max) > 0 && pass !== "" ? Math.round(Number(max) * Number(pass)) / 100 : null;
 
   const save = () => run(
-    () => saveSubject({ id: subject?.id, name, max_marks: Number(max), sort_order: Number(order) || 0 }),
+    () => saveSubject({ id: subject?.id, name, max_marks: Number(max), pass_percent: Number(pass), sort_order: Number(order) || 0 }),
     () => { setOpen(false); if (!subject) { setName(""); setOrder(String(Number(order) + 1)); } },
     setErrors,
   );
@@ -64,9 +66,13 @@ export function SubjectDialog({ subject, nextOrder = 0 }: {
           <Field id="sub-name" label="Subject name" required error={errors?.name?.[0]}>
             <Input id="sub-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Old Testament" />
           </Field>
-          <div className="grid grid-cols-2 gap-3">
+          <div className="grid grid-cols-3 gap-3">
             <Field id="sub-max" label="Maximum marks" required error={errors?.max_marks?.[0]}>
               <Input id="sub-max" inputMode="decimal" value={max} onChange={(e) => setMax(e.target.value)} />
+            </Field>
+            <Field id="sub-pass" label="Pass %" required error={errors?.pass_percent?.[0]}
+              hint={passMarks !== null && !Number.isNaN(passMarks) ? `= ${passMarks} marks` : undefined}>
+              <Input id="sub-pass" inputMode="decimal" value={pass} onChange={(e) => setPass(e.target.value)} />
             </Field>
             <Field id="sub-order" label="Order" hint="Lower comes first" error={errors?.sort_order?.[0]}>
               <Input id="sub-order" inputMode="numeric" value={order} onChange={(e) => setOrder(e.target.value)} />
@@ -74,7 +80,7 @@ export function SubjectDialog({ subject, nextOrder = 0 }: {
           </div>
         </div>
         <DialogFooter>
-          <Button onClick={save} disabled={pending || !name.trim() || !max}>
+          <Button onClick={save} disabled={pending || !name.trim() || !max || pass === ""}>
             {pending && <Loader2 className="animate-spin" />} Save
           </Button>
         </DialogFooter>
@@ -182,10 +188,11 @@ export function CreateExamDialog({ yearId, yearName, classes }: {
   );
 }
 
-export function EditExamDialog({ exam }: { exam: { id: string; name: string; exam_date: string } }) {
+export function EditExamDialog({ exam }: { exam: { id: string; name: string; exam_date: string; weight: number } }) {
   const [open, setOpen] = useState(false);
   const [name, setName] = useState(exam.name);
   const [date, setDate] = useState(exam.exam_date);
+  const [weight, setWeight] = useState(String(exam.weight));
   const [errors, setErrors] = useState<Errors>();
   const { pending, run } = useRun();
 
@@ -204,10 +211,14 @@ export function EditExamDialog({ exam }: { exam: { id: string; name: string; exa
           <Field id={`ee-date-${exam.id}`} label="Date" error={errors?.exam_date?.[0]}>
             <Input id={`ee-date-${exam.id}`} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
           </Field>
+          <Field id={`ee-w-${exam.id}`} label="Weight in the annual result" error={errors?.weight?.[0]} className="sm:col-span-3"
+            hint="1 = counts the same as every other exam. 2 = counts twice as much. 0 = left out.">
+            <Input id={`ee-w-${exam.id}`} inputMode="decimal" value={weight} onChange={(e) => setWeight(e.target.value)} className="w-28" />
+          </Field>
         </div>
         <DialogFooter>
-          <Button disabled={pending || !name.trim()}
-            onClick={() => run(() => updateExam({ id: exam.id, name, exam_date: date }), () => setOpen(false), setErrors)}>
+          <Button disabled={pending || !name.trim() || weight === ""}
+            onClick={() => run(() => updateExam({ id: exam.id, name, exam_date: date, weight: Number(weight) }), () => setOpen(false), setErrors)}>
             {pending && <Loader2 className="animate-spin" />} Save
           </Button>
         </DialogFooter>

@@ -19,8 +19,10 @@ export const ADMIN_NAV: NavItem[] = [
   { href: "/admin/teachers", label: "Teachers", icon: "teachers", color: "purple" },
   { href: "/admin/exams", label: "Subjects & Exams", icon: "exams", color: "amber" },
   { href: "/admin/report-cards", label: "Report cards", icon: "reportcards", color: "sky" },
+  { href: "/admin/toppers", label: "Toppers", icon: "trophy", color: "amber" },
   { href: "/admin/reports", label: "Reports", icon: "reports", color: "green", primary: true },
   { href: "/admin/certificates", label: "Certificates", icon: "certificates", color: "pink" },
+  { href: "/admin/accounts", label: "Accounts", icon: "wallet", color: "teal" },
   { href: "/admin/promotion", label: "Promotion", icon: "promotion", color: "red" },
   { href: "/admin/admins", label: "Admins", icon: "teachers", color: "slate", superOnly: true },
   { href: "/admin/rights", label: "User rights", icon: "shield", color: "slate", superOnly: true },
@@ -36,7 +38,9 @@ export const TEACHER_NAV: NavItem[] = [
   { href: "/teacher/students", label: "Students", icon: "students", color: "blue" },
   { href: "/teacher/import", label: "Bulk upload", icon: "upload", color: "teal" },
   { href: "/teacher/reports", label: "Reports", icon: "reports", color: "green" },
+  { href: "/teacher/toppers", label: "Toppers", icon: "trophy", color: "amber" },
   { href: "/teacher/certificates", label: "Certificates", icon: "certificates", color: "pink" },
+  { href: "/teacher/charity", label: "Charity", icon: "heart", color: "red" },
   { href: "/teacher/account", label: "Account", icon: "account", color: "slate" },
 ];
 

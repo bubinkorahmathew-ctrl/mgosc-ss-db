@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { FATHER_NAME_PLACEHOLDER, NOT_ASSIGNED_PRAYER_UNIT } from "@/lib/config";
 import { ageOn, ageParts, formatAge } from "@/lib/dates";
-import { studentConditions, studentOrder } from "@/lib/data/students";
+import { studentConditions, studentOrder } from "@/lib/repo/students";
 import type { Condition } from "@/lib/db/sql";
 import { dobBoundsForAge, parseStudentReport } from "@/lib/validation/reports";
 import { studentFiltersSchema } from "@/lib/validation/student";

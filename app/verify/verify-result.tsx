@@ -1,7 +1,7 @@
 import { BadgeCheck, CircleX, SearchX } from "lucide-react";
 import { CERT_LABELS } from "@/lib/certificates";
 import { formatDate } from "@/lib/dates";
-import { verifyCertificate } from "@/lib/data/verify";
+import { verifyCertificate } from "@/lib/repo/verify";
 
 export async function VerifyResult({ no }: { no: string }) {
   const r = await verifyCertificate(no);

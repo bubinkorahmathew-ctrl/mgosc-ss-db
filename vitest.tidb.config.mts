@@ -11,6 +11,8 @@ export default defineConfig({
   },
   test: {
     environment: "node",
+    // next-auth imports "next/server" without an extension, which only a bundler resolves
+    server: { deps: { inline: ["next-auth"] } },
     include: ["tests/tidb/**/*.test.ts"],
     fileParallelism: false,
     testTimeout: 60_000,

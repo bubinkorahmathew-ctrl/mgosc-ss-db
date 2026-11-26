@@ -3,10 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 import { describe, expect, it } from "vitest";
 import { renderCertificates } from "@/lib/pdf/certificate";
-import type { PdfCertificate } from "@/lib/data/certificates";
+import type { PdfCertificate } from "@/lib/repo/certificates";
 import { renderReportCards } from "@/lib/pdf/report-card";
 import { loadBanner } from "@/lib/pdf/images";
 import { computeResults } from "@/lib/results";
+import { DEFAULT_SCALE } from "@/lib/grades";
 
 /** set PDF_OUT=<dir> to save the sample PDFs for a visual check */
 const save = (name: string, buf: Buffer) => {
@@ -32,7 +33,7 @@ describe("PDF rendering", () => {
   });
   const pages = (buf: Buffer) => (buf.toString("latin1").match(/\/Type\s*\/Page[^s]/g) ?? []).length;
   const render = (certs: PdfCertificate[], details = new Map<string, { label: string; value: string }[]>()) =>
-    renderCertificates(certs, { signatories, details });
+    renderCertificates(null as never, certs, { signatories, details }); // both given: no user needed
 
   it("renders one certificate of each type, with its theme and subtitle", async () => {
     const types = ["merit", "completion", "participation", "memory_verse", "attendance", "custom", "class_topper", "attendance_topper"] as const;
@@ -67,14 +68,17 @@ describe("PDF rendering", () => {
   }, 60_000);
 
   it("renders report cards", async () => {
-    const subjects = [{ id: "a", name: "Old Testament", max: 50 }, { id: "b", name: "Memory Verse", max: 25 }];
+    const subjects = [{ id: "a", name: "Old Testament", max: 50, passPercent: 40 }, { id: "b", name: "Memory Verse", max: 25, passPercent: 40 }];
     const results = computeResults(
       [{ id: "s1", name: "Aaron Mathew", nameMl: "ആരോൺ മാത്യു", admissionNo: "SS-2026-0001" },
        { id: "s2", name: "Anna Joseph", nameMl: null, admissionNo: "SS-2026-0002" }],
-      subjects, [{ student_id: "s1", subject_id: "a", marks_obtained: 42 }]);
+      subjects, [
+        { student_id: "s1", subject_id: "a", marks_obtained: 42 }, { student_id: "s1", subject_id: "b", marks_obtained: 0, is_absent: true },
+        { student_id: "s2", subject_id: "a", marks_obtained: 45 }, { student_id: "s2", subject_id: "b", marks_obtained: 23 },
+      ], new Set(), DEFAULT_SCALE);
     const buf = await renderReportCards({
-      exam: { id: "e", name: "First Term", exam_date: "2026-10-04", class_id: "c", academic_year_id: "y" },
-      className: "Class 1", yearName: "2026-27", subjects, results,
+      exam: { id: "e", name: "First Term", exam_date: "2026-10-04", class_id: "c", academic_year_id: "y", weight: 1 },
+      className: "Class 1", yearName: "2026-27", subjects, results, scale: DEFAULT_SCALE,
       attendance: { s1: { present: 10, late: 1, absent: 2, days: 13 } },
     }, null, { ...branding, banner, classTeacherName: "Mary Thomas" });
     save("report-cards.pdf", buf);

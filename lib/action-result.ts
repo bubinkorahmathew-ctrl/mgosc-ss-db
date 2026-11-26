@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { AuthError } from "@/lib/auth";
+import { UserError } from "@/lib/user-error";
 
 export type ActionResult<T = undefined> =
   | { ok: true; data?: T; message?: string }
@@ -15,6 +16,7 @@ export function toActionError(e: unknown): { ok: false; error: string; fieldErro
     };
   }
   if (e instanceof AuthError) return { ok: false, error: e.message };
+  if (e instanceof UserError) return { ok: false, error: e.message, ...(e.fieldErrors && { fieldErrors: e.fieldErrors }) };
   const msg = (e as { message?: string })?.message ?? "";
   if (/duplicate key/i.test(msg)) return { ok: false, error: "That record already exists." };
   if (/choose a prayer unit/i.test(msg)) {

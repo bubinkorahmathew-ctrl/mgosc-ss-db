@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
-import { getClassOptions } from "@/lib/data/classes";
-import { getClassStudents } from "@/lib/data/teacher-context";
+import { requireRole } from "@/lib/auth";
+import { getClassOptions } from "@/lib/repo/classes";
+import { getClassStudents } from "@/lib/repo/teacher-context";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { UrlSelect } from "@/components/form/url-select";
 import { PromotionForm } from "./promotion-form";
@@ -8,11 +9,12 @@ import { PromotionForm } from "./promotion-form";
 export const metadata: Metadata = { title: "Promotion" };
 
 export default async function PromotionPage({ searchParams }: PageProps<"/admin/promotion">) {
+  const user = await requireRole("headmaster");
   const sp = await searchParams;
-  const all = await getClassOptions();
+  const all = await getClassOptions(user);
   const opt = (c: (typeof all)[number]) => ({ value: c.id, label: `${c.label} (${c.yearName})` });
   const from = all.find((c) => c.id === sp.from) ?? all.find((c) => c.isCurrent) ?? all[0];
-  const students = from ? await getClassStudents(from.id) : [];
+  const students = from ? await getClassStudents(user, from.id) : [];
   // suggest classes of the next academic year first, then same year, then older years
   const rank = (c: (typeof all)[number]) =>
     !from ? 0 : c.yearStart > from.yearStart ? 0 : c.academic_year_id === from.academic_year_id ? 1 : 2;

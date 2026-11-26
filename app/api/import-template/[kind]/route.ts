@@ -2,8 +2,8 @@ import type { NextRequest } from "next/server";
 import { apiUser, textResponse } from "@/lib/api";
 import { AuthError } from "@/lib/auth";
 import { todayISO } from "@/lib/dates";
-import { loadClass, loadExam } from "@/lib/import/context";
-import { getPrayerUnits } from "@/lib/data/students";
+import { loadClass, loadExam } from "@/lib/repo/import";
+import { getPrayerUnits } from "@/lib/repo/students";
 import { attendanceTemplate, marksTemplate, studentTemplate } from "@/lib/import/templates";
 import { isoDate, uuid } from "@/lib/validation/common";
 import { xlsxResponse } from "@/lib/xlsx";
@@ -17,7 +17,7 @@ export async function GET(req: NextRequest, ctx: RouteContext<"/api/import-templ
 
   try {
     if (kind === "students") {
-      const units = (await getPrayerUnits()).filter((u) => u.active).map((u) => u.name);
+      const units = (await getPrayerUnits(user)).filter((u) => u.active).map((u) => u.name);
       return xlsxResponse(await studentTemplate(units), "Students upload.xlsx");
     }
 

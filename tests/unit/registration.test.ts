@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { registrationSchema } from "@/lib/validation/registration";
 import { createTeacherSchema } from "@/lib/validation/staff";
-import { checkAndRecord, clientIp, hashIp, type AttemptStore } from "@/lib/rate-limit";
-import { sanitizeSearch } from "@/lib/data/students";
+import { clientIp } from "@/lib/rate-limit";
+import { sanitizeSearch } from "@/lib/repo/students";
 import { generateTempPassword } from "@/lib/password";
 
 const UNIT = "70000000-0000-4000-8000-000000000001";
@@ -126,46 +126,8 @@ describe("registration validation", () => {
   });
 });
 
-function memoryStore(): AttemptStore & { rows: { key: string; at: Date }[] } {
-  const rows: { key: string; at: Date }[] = [];
-  return {
-    rows,
-    async count(key, since) { return rows.filter((r) => r.key === key && r.at >= since).length; },
-    async record(key) { rows.push({ key, at: new Date() }); },
-  };
-}
-
-describe("registration rate limit", () => {
-  it("allows 5 attempts per hour per IP, then blocks", async () => {
-    const store = memoryStore();
-    const key = hashIp("203.0.113.9", "salt");
-    const results = [];
-    for (let i = 0; i < 7; i++) results.push(await checkAndRecord(store, key));
-    expect(results).toEqual([true, true, true, true, true, false, false]);
-    expect(store.rows.length).toBe(5); // blocked attempts are not recorded
-  });
-
-  it("does not affect other IPs", async () => {
-    const store = memoryStore();
-    for (let i = 0; i < 5; i++) await checkAndRecord(store, hashIp("1.1.1.1", "s"));
-    expect(await checkAndRecord(store, hashIp("2.2.2.2", "s"))).toBe(true);
-  });
-
-  it("allows again after the window passes", async () => {
-    const store = memoryStore();
-    const key = "k";
-    for (let i = 0; i < 5; i++) await checkAndRecord(store, key);
-    const later = new Date(Date.now() + 61 * 60_000);
-    expect(await checkAndRecord(store, key, undefined, later)).toBe(true);
-  });
-
-  it("never stores the raw IP", () => {
-    const h = hashIp("203.0.113.9", "salt");
-    expect(h).toMatch(/^[0-9a-f]{64}$/);
-    expect(h).not.toContain("203");
-    expect(hashIp("203.0.113.9", "other")).not.toBe(h);
-  });
-
+// The rate limit itself (rate_limits table) is tested on TiDB: tests/tidb/hardening.test.ts
+describe("client address", () => {
   it("uses the first X-Forwarded-For address", () => {
     expect(clientIp(new Headers({ "x-forwarded-for": "198.51.100.1, 10.0.0.1" }))).toBe("198.51.100.1");
     expect(clientIp(new Headers({ "x-real-ip": "198.51.100.2" }))).toBe("198.51.100.2");

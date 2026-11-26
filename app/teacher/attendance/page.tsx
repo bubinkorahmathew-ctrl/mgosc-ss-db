@@ -5,6 +5,6 @@ import { AttendanceWorkspace } from "@/components/attendance/attendance-workspac
 export const metadata: Metadata = { title: "Attendance" };
 
 export default async function AttendancePage({ searchParams }: PageProps<"/teacher/attendance">) {
-  await requireRole("teacher");
-  return <AttendanceWorkspace sp={await searchParams} admin={false} />;
+  const user = await requireRole("teacher");
+  return <AttendanceWorkspace user={user} sp={await searchParams} admin={false} />;
 }

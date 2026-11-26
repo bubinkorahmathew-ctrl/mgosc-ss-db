@@ -1,12 +1,13 @@
-/** Row types. Mirrors tidb/migrations/*.sql. */
-export type UserRole = "headmaster" | "teacher";
+/** Row types. Mirrors db/schema (Drizzle). */
+export type UserRole = "headmaster" | "teacher" | "ovbs_teacher";
 export type Gender = "male" | "female";
 export type StudentStatus = "active" | "inactive" | "passed_out";
 export type RegistrationStatus = "pending" | "approved" | "rejected";
 export type AttendanceStatus = "present" | "absent" | "late";
 export type ActivityType = "competition" | "memory_verse" | "event" | "note";
 export type CertificateType =
-  | "completion" | "merit" | "attendance" | "participation" | "memory_verse" | "custom";
+  | "completion" | "merit" | "attendance" | "participation" | "memory_verse" | "custom"
+  | "class_topper" | "attendance_topper";
 
 export type ProfileRow = {
   id: string; full_name: string; phone: string | null; twelfth_passed_year: number | null;
@@ -37,9 +38,21 @@ export type RegistrationRow = PersonalFields & {
   reviewed_at: string | null; review_note: string | null; student_id: string | null;
 };
 export type RegistrationAttemptRow = { id: number; ip_hash: string; created_at: string };
-export type SubjectRow = { id: string; name: string; max_marks: number; sort_order: number };
+export type SubjectRow = { id: string; name: string; max_marks: number; pass_percent: number; sort_order: number };
 export type ExamRow = {
-  id: string; name: string; class_id: string; academic_year_id: string; exam_date: string | null; created_at: string;
+  id: string; name: string; class_id: string; academic_year_id: string; exam_date: string | null;
+  /** weight in an annual result */
+  weight: number; created_at: string;
+};
+export type GradeScaleRow = {
+  id: string; min_percent: number; max_percent: number; grade: string; grade_point: number | null;
+  remark: string | null; is_pass: boolean;
+};
+export type TopperType = "marks" | "attendance";
+export type TopperRow = {
+  id: string; class_id: string; academic_year_id: string; exam_id: string | null;
+  period_start: string; period_end: string; type: TopperType; student_id: string; value: number;
+  confirmed_by: string | null; confirmed_at: string;
 };
 export type MarkRow = {
   id: string; exam_id: string; student_id: string; subject_id: string; marks_obtained: number;
@@ -63,6 +76,8 @@ export type ActivityRow = {
 export type CertificateRow = {
   id: string; certificate_no: string; student_id: string; type: CertificateType; title: string;
   body_text: string; academic_year_id: string; exam_id: string | null; activity_id: string | null;
+  /** the confirmed topper this certificate was issued for */
+  topper_id: string | null;
   student_name: string; student_name_ml: string | null; class_name: string; class_id: string | null;
   year_name: string; class_teacher_name: string | null; issued_on: string; issued_by: string | null;
   revoked: boolean; revoked_at: string | null; created_at: string;
@@ -74,6 +89,13 @@ export type SchoolSettingsRow = {
   signature_url: string | null; vicar_signature_url: string | null;
   certificate_wording: Partial<Record<CertificateType, string>>;
   /** read it with readNavStyle() */
-  nav_icons: unknown; updated_at: string;
+  nav_icons: unknown;
+  /** an attendance topper needs this % of the period's Sundays held */
+  attendance_topper_min_pct: number;
+  /** IANA time zone of the school, e.g. Asia/Riyadh */
+  timezone: string;
+  currency_code: string;
+  currency_symbol: string;
+  updated_at: string;
 };
-export type NumberCounterRow = { kind: "admission" | "certificate"; year: number; last_value: number };
+export type NumberCounterRow = { name: string; year: number; last_value: number };

@@ -1,25 +1,19 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/db/server";
 import { assertRole, assertSuperAdmin } from "@/lib/auth";
-import { NOT_ASSIGNED_PRAYER_UNIT } from "@/lib/config";
+import { parseSigner } from "@/lib/branding";
+import { removeSignature } from "@/lib/repo/branding";
+import * as settings from "@/lib/repo/settings";
 import { deletePrayerUnitSchema, prayerUnitSchema } from "@/lib/validation/prayer-units";
-import { parseSigner, removeSignature } from "@/lib/branding";
-import { getDatabase } from "@/lib/db";
 import { settingsSchema } from "@/lib/validation/academics";
 import { navStyleSchema } from "@/lib/validation/menu-icons";
 import { toActionError, type ActionResult } from "@/lib/action-result";
 
 export async function saveSettings(input: unknown): Promise<ActionResult> {
   try {
-    await assertSuperAdmin();
-    const { certificate_wording, ...data } = settingsSchema.parse(input);
-    const wording = Object.fromEntries(Object.entries(certificate_wording).map(([k, v]) => [k, v ?? ""]));
-    const dbc = await createClient();
-    const { error } = await dbc.from("school_settings")
-      .update({ ...data, certificate_wording: wording, updated_at: new Date().toISOString() }).eq("id", 1);
-    if (error) throw error;
+    const user = await assertSuperAdmin();
+    await settings.saveSettings(user, settingsSchema.parse(input));
     revalidatePath("/admin/settings");
     return { ok: true, message: "Settings saved." };
   } catch (e) {
@@ -30,12 +24,8 @@ export async function saveSettings(input: unknown): Promise<ActionResult> {
 /** The icon and colour of each menu section and home-page tile. */
 export async function saveMenuIcons(input: unknown): Promise<ActionResult> {
   try {
-    await assertSuperAdmin();
-    const style = navStyleSchema.parse(input);
-    const dbc = await createClient();
-    const { error } = await dbc.from("school_settings")
-      .update({ nav_icons: Object.keys(style).length ? style : null, updated_at: new Date().toISOString() }).eq("id", 1);
-    if (error) throw error;
+    const user = await assertSuperAdmin();
+    await settings.saveMenuIcons(user, navStyleSchema.parse(input));
     revalidatePath("/admin", "layout");
     revalidatePath("/teacher", "layout");
     return { ok: true, message: "Menu icons saved." };
@@ -49,20 +39,11 @@ const PRAYER_UNIT_PAGES = ["/admin/settings", "/register", "/admin/students", "/
 /** Add a prayer unit, or rename / switch one on or off. "Not assigned" is fixed. */
 export async function savePrayerUnit(input: unknown): Promise<ActionResult> {
   try {
-    await assertRole("headmaster");
-    const { id, name, active } = prayerUnitSchema.parse(input);
-    if (id === NOT_ASSIGNED_PRAYER_UNIT) return { ok: false, error: "\"Not assigned\" cannot be changed." };
-    const dbc = await createClient();
-    if (id) {
-      const { data, error } = await dbc.from("prayer_units").update({ name, active }).eq("id", id).select("id");
-      if (error) throw error;
-      if (!data?.length) return { ok: false, error: "Prayer unit not found." };
-    } else {
-      const { error } = await dbc.from("prayer_units").insert({ name, active });
-      if (error) throw error;
-    }
+    const user = await assertRole("headmaster");
+    const data = prayerUnitSchema.parse(input);
+    await settings.savePrayerUnit(user, data);
     for (const path of PRAYER_UNIT_PAGES) revalidatePath(path);
-    return { ok: true, message: id ? "Prayer unit saved." : "Prayer unit added." };
+    return { ok: true, message: data.id ? "Prayer unit saved." : "Prayer unit added." };
   } catch (e) {
     return toActionError(e);
   }
@@ -71,16 +52,8 @@ export async function savePrayerUnit(input: unknown): Promise<ActionResult> {
 /** Only a unit no student or registration uses can be deleted; otherwise switch it off. */
 export async function deletePrayerUnit(input: unknown): Promise<ActionResult> {
   try {
-    await assertRole("headmaster");
-    const { id } = deletePrayerUnitSchema.parse(input);
-    if (id === NOT_ASSIGNED_PRAYER_UNIT) return { ok: false, error: "\"Not assigned\" cannot be deleted." };
-    const dbc = await createClient();
-    const { data, error } = await dbc.from("prayer_units").delete().eq("id", id).select("id");
-    if (error) {
-      if (error.code === "23503") return { ok: false, error: "Students or registrations use this unit. Switch it off instead." };
-      throw error;
-    }
-    if (!data?.length) return { ok: false, error: "Prayer unit not found." };
+    const user = await assertRole("headmaster");
+    await settings.deletePrayerUnit(user, deletePrayerUnitSchema.parse(input).id);
     for (const path of PRAYER_UNIT_PAGES) revalidatePath(path);
     return { ok: true, message: "Prayer unit deleted." };
   } catch (e) {
@@ -92,7 +65,7 @@ export async function deletePrayerUnit(input: unknown): Promise<ActionResult> {
 export async function removeSignatureImage(who?: unknown): Promise<ActionResult> {
   try {
     const user = await assertSuperAdmin();
-    await removeSignature(getDatabase(), user.id, parseSigner(typeof who === "string" ? who : null));
+    await removeSignature(user, parseSigner(typeof who === "string" ? who : null));
     revalidatePath("/admin/settings");
     return { ok: true, message: "Signature removed." };
   } catch (e) {

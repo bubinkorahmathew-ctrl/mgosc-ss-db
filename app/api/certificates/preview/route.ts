@@ -1,5 +1,5 @@
 import { apiUser, pdfResponse, textResponse } from "@/lib/api";
-import { prepareCertificates } from "@/lib/data/certificates";
+import { prepareCertificates } from "@/lib/repo/certificates";
 import { renderCertificates } from "@/lib/pdf/certificate";
 import { issueCertificatesSchema } from "@/lib/validation/certificates";
 
@@ -25,10 +25,10 @@ export async function POST(request: Request) {
   if (!parsed.success) return textResponse(400, parsed.error.issues[0]?.message ?? "Please check the form.");
 
   const v = { ...parsed.data, student_ids: parsed.data.student_ids.slice(0, PREVIEW_MAX) };
-  const prepared = await prepareCertificates(v);
+  const prepared = await prepareCertificates(user, v);
   if (!prepared.ok) return textResponse(422, prepared.error);
 
-  const buf = await renderCertificates(prepared.rows.map((r, i) => ({
+  const buf = await renderCertificates(user, prepared.rows.map((r, i) => ({
     ...r, key: `preview-${i}`, certificate_no: `PREVIEW-${i + 1}`, revoked: false,
   })), { preview: true });
   return pdfResponse(buf, "Certificate preview.pdf", false);

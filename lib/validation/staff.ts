@@ -42,8 +42,3 @@ export const updateTeacherSchema = z.object({
 });
 
 export const teacherIdSchema = z.object({ id: uuid });
-
-export const changePasswordSchema = z.object({
-  password: z.string().min(8, "Use at least 8 characters.").max(72, "Password is too long."),
-  confirm: z.string(),
-}).refine((v) => v.password === v.confirm, { message: "Passwords do not match.", path: ["confirm"] });

@@ -1,10 +1,16 @@
 import { Download, FileSpreadsheet, FileText } from "lucide-react";
-import type { ExamResults } from "@/lib/data/results";
+import type { ExamResults } from "@/lib/repo/results";
 import { formatPercent, ordinal } from "@/lib/results";
 import { formatDate } from "@/lib/dates";
 import { percent } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/page-header";
+
+export function ResultBadge({ result }: { result: string | null }) {
+  if (!result) return <span className="text-xs text-muted-foreground">Pending</span>;
+  const tone = result === "Pass" ? "bg-emerald-100 text-emerald-900" : result === "Fail" ? "bg-red-100 text-red-900" : "bg-zinc-200 text-zinc-800";
+  return <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${tone}`}>{result}</span>;
+}
 
 /** Ranked results of one exam, with PDF report cards and an Excel export. */
 export function ResultsView({ data }: { data: ExamResults }) {
@@ -30,6 +36,9 @@ export function ResultsView({ data }: { data: ExamResults }) {
           <Button variant="outline" render={<a href={`/api/export/results?exam=${exam.id}`} />} nativeButton={false}>
             <FileSpreadsheet /> Excel
           </Button>
+          <Button variant="outline" render={<a href={`/api/export/results?exam=${exam.id}&format=pdf`} target="_blank" rel="noopener" />} nativeButton={false}>
+            <FileText /> PDF list
+          </Button>
         </div>
       </div>
 
@@ -47,6 +56,8 @@ export function ResultsView({ data }: { data: ExamResults }) {
                 ))}
                 <th className="px-3 py-2 text-right font-medium">Total</th>
                 <th className="px-3 py-2 text-right font-medium">%</th>
+                <th className="px-3 py-2 font-medium">Grade</th>
+                <th className="px-3 py-2 font-medium">Result</th>
                 <th className="px-3 py-2 text-right font-medium">Attendance</th>
                 <th className="px-2 py-2"><span className="sr-only">Report card</span></th>
               </tr>
@@ -62,18 +73,27 @@ export function ResultsView({ data }: { data: ExamResults }) {
                       <div className="text-xs text-muted-foreground">{r.admissionNo}</div>
                     </td>
                     {r.examAbsent ? (
-                      <td colSpan={subjects.length + 2} className="px-3 py-2 text-center font-medium text-red-700">Absent for the exam</td>
+                      <td colSpan={subjects.length + 3} className="px-3 py-2 text-center font-medium text-red-700">Absent for the exam</td>
                     ) : (
                       <>
-                        {subjects.map((s) => (
-                          <td key={s.id} className={`px-2 py-2 text-right tabular-nums ${r.marks[s.id] === "AB" ? "font-medium text-red-700" : ""}`}>
-                            {r.marks[s.id] ?? <span className="text-muted-foreground">-</span>}
-                          </td>
-                        ))}
+                        {subjects.map((s) => {
+                          const failed = r.failedSubjects.includes(s.id);
+                          return (
+                            <td key={s.id} className={`px-2 py-2 text-right tabular-nums ${failed ? "font-medium text-red-700" : ""}`}
+                              title={failed ? "Below the pass mark" : undefined}>
+                              {r.marks[s.id] ?? <span className="text-muted-foreground">-</span>}
+                              {r.subjectGrades[s.id] && r.marks[s.id] !== "AB" && (
+                                <span className="ml-1 text-xs text-muted-foreground">{r.subjectGrades[s.id]}</span>
+                              )}
+                            </td>
+                          );
+                        })}
                         <td className="px-3 py-2 text-right font-medium tabular-nums">{r.subjectsEntered ? `${r.total}/${r.max}` : "-"}</td>
                         <td className="px-3 py-2 text-right tabular-nums">{formatPercent(r.percentage)}</td>
+                        <td className="px-3 py-2 font-semibold">{r.grade ?? "-"}</td>
                       </>
                     )}
+                    <td className="px-3 py-2"><ResultBadge result={r.result} /></td>
                     <td className="px-3 py-2 text-right tabular-nums">{a ? percent(a.present + a.late, a.days, 0) : "-"}</td>
                     <td className="px-2 py-1">
                       <Button variant="ghost" size="sm" aria-label={`Report card for ${r.name}`}
@@ -89,8 +109,9 @@ export function ResultsView({ data }: { data: ExamResults }) {
         </div>
       )}
       <p className="text-xs text-muted-foreground">
-        Percentage is over the subjects that have marks; AB (a missed subject) counts as 0. Students absent for the
-        exam get no rank. Students with equal percentages share a rank.
+        Percentage is over the subjects that have marks; AB (a missed subject) counts as 0. Pass needs every subject at
+        or above its pass mark (shown in red when below). Students absent for the exam get no rank; equal percentages
+        share a rank. Small letters next to marks are subject grades.
       </p>
     </div>
   );

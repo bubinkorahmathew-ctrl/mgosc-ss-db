@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { createClient } from "@/lib/db/server";
-import { getClassOptions } from "@/lib/data/classes";
+import { requireRole } from "@/lib/auth";
+import { getRegistration } from "@/lib/repo/registrations";
+import { getClassOptions } from "@/lib/repo/classes";
 import { formatAge, formatDate } from "@/lib/dates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
@@ -15,12 +16,8 @@ export const metadata: Metadata = { title: "Registration" };
 export default async function RegistrationDetail({ params }: PageProps<"/admin/registrations/[id]">) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const dbc = await createClient();
-  const [{ data: r }, classes] = await Promise.all([
-    dbc.from("registrations").select("*, reviewer:profiles!registrations_reviewed_by_fkey(full_name), prayer_units(name)")
-      .eq("id", id).maybeSingle(),
-    getClassOptions({ currentOnly: true }),
-  ]);
+  const user = await requireRole("headmaster");
+  const [r, classes] = await Promise.all([getRegistration(user, id), getClassOptions(user, { currentOnly: true })]);
   if (!r) notFound();
 
   const rows: [string, React.ReactNode][] = [

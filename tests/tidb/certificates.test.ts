@@ -3,14 +3,15 @@
  * (app/api/certificates/[no]/pdf, app/api/certificates/bulk, app/api/pdf/certificates).
  */
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from "vitest";
-import { readSignature, removeSignature, saveSignature } from "@/lib/branding";
+import { readSignature, removeSignature, saveSignature } from "@/lib/repo/branding";
 import { createTiDbTest, IDS, type Sandbox, type TiDbTest } from "./harness";
+import { viewer } from "./viewers";
 
 let t: TiDbTest;
 let s: Sandbox;
 beforeAll(async () => { t = await createTiDbTest(); });
 afterAll(async () => { await t?.destroy(); });
-beforeEach(async () => { s = await t.sandbox(); });
+beforeEach(async () => { s = await t.sandbox(); s.use(); });
 afterEach(async () => { await s?.end(); });
 
 const issue = async (student_id: string, class_id: string) => {
@@ -48,14 +49,15 @@ describe("Vicar's signature", () => {
   const PNG = Buffer.from("89504e470d0a1a0a0000000d4948445200000001000000010806000000", "hex");
 
   it("is stored apart from the Headmaster's, by the super admin only", async () => {
-    await saveSignature(s.database, IDS.headmaster, PNG, "vicar");
-    expect((await readSignature(s.database, "vicar"))?.mime).toBe("image/png");
-    expect(await readSignature(s.database, "headmaster")).toBeNull();
+    const head = viewer(IDS.headmaster);
+    await saveSignature(head, PNG, "vicar");
+    expect((await readSignature(head, "vicar"))?.mime).toBe("image/png");
+    expect(await readSignature(head, "headmaster")).toBeNull();
     const [settings] = await s.as(IDS.headmaster).select("school_settings");
     expect(settings.vicar_signature_url).toMatch(/^\/api\/branding\/signature\?who=vicar&v=\d+$/);
     expect(settings.signature_url).toBeNull();
-    await expect(saveSignature(s.database, IDS.teacher1, PNG, "vicar")).rejects.toThrow(/not allowed/);
-    await removeSignature(s.database, IDS.headmaster, "vicar");
-    expect(await readSignature(s.database, "vicar")).toBeNull();
+    await expect(saveSignature(viewer(IDS.teacher1, "teacher"), PNG, "vicar")).rejects.toThrow(/not allowed/);
+    await removeSignature(head, "vicar");
+    expect(await readSignature(head, "vicar")).toBeNull();
   });
 });

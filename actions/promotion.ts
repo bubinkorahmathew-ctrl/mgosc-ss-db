@@ -1,38 +1,23 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { createClient } from "@/lib/db/server";
 import { assertRole } from "@/lib/auth";
 import { promotionSchema } from "@/lib/validation/academics";
+import { promoteStudents as promote } from "@/lib/repo/students";
 import { toActionError, type ActionResult } from "@/lib/action-result";
 
 /**
  * Move ticked students from one class to another (usually next year's class), or mark them
  * as passed out. Unticked students (held back) stay where they are.
- * Attendance, marks and certificates keep pointing at the old class, so history is preserved.
  */
 export async function promoteStudents(input: unknown): Promise<ActionResult<{ moved: number }>> {
   try {
-    await assertRole("headmaster");
-    const { from_class_id, target, student_ids } = promotionSchema.parse(input);
-    const dbc = await createClient();
-
-    if (target !== "passed_out") {
-      const { data: cls } = await dbc.from("classes").select("id").eq("id", target).maybeSingle();
-      if (!cls) return { ok: false, error: "Target class not found." };
-    }
-
-    // only active students that are still in the source class are touched
-    const base = dbc.from("students")
-      .update(target === "passed_out" ? { status: "passed_out" as const } : { class_id: target });
-    const { data, error } = await base.eq("class_id", from_class_id).eq("status", "active").in("id", student_ids).select("id");
-    if (error) throw error;
-    const moved = data?.length ?? 0;
-    if (!moved) return { ok: false, error: "None of the selected students are active in that class any more." };
-
+    const user = await assertRole("headmaster");
+    const data = promotionSchema.parse(input);
+    const moved = await promote(user, data);
     for (const p of ["/admin/promotion", "/admin/students", "/admin/classes", "/admin"]) revalidatePath(p);
-    const skipped = student_ids.length - moved;
-    const verb = target === "passed_out" ? "marked as passed out" : "moved";
+    const skipped = data.student_ids.length - moved;
+    const verb = data.target === "passed_out" ? "marked as passed out" : "moved";
     return {
       ok: true, data: { moved },
       message: `${moved} student${moved === 1 ? "" : "s"} ${verb}.${skipped ? ` ${skipped} skipped (no longer in the class).` : ""}`,

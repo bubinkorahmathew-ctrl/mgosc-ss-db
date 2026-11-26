@@ -1,8 +1,9 @@
 /** Risks that only exist because the rules now live in the app: injection, races, missing CHECKs. */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createPool } from "@/lib/db/connection";
+import { createDatabase } from "@/lib/db/connection";
 import { COLUMNS, type TableName } from "@/lib/db/schema";
-import { registrationAttempts } from "@/lib/db/system";
+import { createDrizzle } from "@/db/client";
+import { RATE_LIMITS, takeRateLimit } from "@/lib/repo/rate-limits";
 import { NOT_ASSIGNED_PRAYER_UNIT } from "@/lib/config";
 import { createTiDbTest, daysAgo, IDS, PRAYER_UNIT, type TiDbTest } from "./harness";
 
@@ -15,13 +16,15 @@ afterAll(async () => {
 });
 
 describe("configuration", () => {
-  it("refuses system schemas", () => {
-    expect(() => createPool({ host: "x", port: 4000, user: "x", password: "x", database: "sys" })).toThrow(/system schema/);
+  it("refuses system schemas and a URL without a database", () => {
+    for (const db of ["sys", "mysql", "INFORMATION_SCHEMA", ""]) {
+      expect(() => createDatabase(`mysql://u:p@gateway.example:4000/${db}`)).toThrow(/system schema/);
+    }
   });
 
-  it("uses TLS 1.2 or later", async () => {
-    const [row] = await t.database.query<{ Value: string }>("show session status like 'Ssl_version'");
-    expect(["TLSv1.2", "TLSv1.3"]).toContain(row.Value);
+  it("a driver error keeps its MySQL error number, and values in it never reach the caller", async () => {
+    await expect(t.database.query("insert into prayer_units (id, name) values (?, 'Secret name')", [PRAYER_UNIT]))
+      .rejects.toThrow(/^duplicate key value violates a unique constraint$/);
   });
 
   it("the column whitelist matches the real schema", async () => {
@@ -198,13 +201,39 @@ describe("concurrent writers (real commits)", () => {
   });
 });
 
-describe("registration rate-limit store", () => {
-  it("counts and purges", async () => {
-    const store = registrationAttempts(t.database);
-    await store.record("hash");
-    await store.record("hash");
-    expect(await store.count("hash", new Date(Date.now() - 3600_000))).toBe(2);
-    await store.purgeOlderThan!(new Date(Date.now() + 60_000));
-    expect(await store.count("hash", new Date(Date.now() - 3600_000))).toBe(0);
+describe("public form rate limit (rate_limits)", () => {
+  const SECRET = "test-secret-that-is-long-enough-1234567890";
+  const { max, minutes } = RATE_LIMITS.registration;
+  const take = (device: string, now?: Date) => takeRateLimit("registration", device, SECRET, now, createDrizzle(t.url));
+
+  it("allows 5 per device per hour, then refuses", async () => {
+    const device = `198.51.100.${Math.floor(Math.random() * 200)}`;
+    const now = new Date();
+    const results = [];
+    for (let i = 0; i < max + 2; i++) results.push(await take(device, now));
+    expect(results).toEqual([...Array(max).fill(true), false, false]);
+  });
+
+  it("a burst of parallel submissions can't slip through", async () => {
+    const device = `burst-${Date.now()}`;
+    const now = new Date();
+    const all = await Promise.all(Array.from({ length: 12 }, () => take(device, now)));
+    expect(all.filter(Boolean)).toHaveLength(max);
+  });
+
+  it("other devices are not affected, and the next window starts fresh", async () => {
+    const device = `window-${Date.now()}`;
+    const now = new Date();
+    for (let i = 0; i < max; i++) await take(device, now);
+    expect(await take(device, now)).toBe(false);
+    expect(await take(`${device}-other`, now)).toBe(true);
+    expect(await take(device, new Date(now.getTime() + (minutes + 1) * 60_000))).toBe(true);
+  });
+
+  it("stores neither the address nor the form's raw key", async () => {
+    await take("203.0.113.77");
+    const all = JSON.stringify(await t.database.query("select * from rate_limits"));
+    expect(all).not.toContain("203.0.113.77");
+    expect(all).not.toContain("registration");
   });
 });

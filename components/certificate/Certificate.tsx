@@ -82,9 +82,10 @@ export function registerCertificateFonts(dir: string) {
       { src: f("cinzel-latin-700-normal.woff"), fontWeight: 700 },
     ],
   });
+  // the student's name: Dancing Script, chosen by the school as easier to read than Great Vibes
   Font.register({
-    family: "GreatVibes",
-    src: f("great-vibes-latin-400-normal.woff"),
+    family: "NameScript",
+    src: f("dancing-script-latin-700-normal.woff"),
   });
   Font.register({
     family: "Cormorant",
@@ -308,7 +309,7 @@ export function CertificatePage(p: CertificateProps) {
 
         {/* ---------- name ---------- */}
         <View style={{ position: "absolute", top: 270, left: 0, width: W, alignItems: "center" }}>
-          <Text style={{ fontFamily: "GreatVibes", fontSize: nameSize, color: main, lineHeight: 1.25 }}>
+          <Text style={{ fontFamily: "NameScript", fontSize: nameSize, color: main, lineHeight: 1.25 }}>
             {p.studentName}
           </Text>
           <Svg width={380} height={4} style={{ marginTop: 0 }}>
@@ -397,7 +398,8 @@ export function CertificatePage(p: CertificateProps) {
         <View
           style={{
             position: "absolute",
-            top: 531,
+            // app change: 7 pt higher than the template, for the bigger QR code (text stays centred where it was)
+            top: 524,
             left: 100,
             width: W - 200,
             flexDirection: "row",
@@ -406,8 +408,9 @@ export function CertificatePage(p: CertificateProps) {
           }}
         >
           <View style={{ flexDirection: "row", alignItems: "center", width: 230 }}>
-            {p.qrDataUrl ? <Image src={p.qrDataUrl} style={{ width: 32, height: 32 }} /> : null}
-            <View style={{ marginLeft: 7 }}>
+            {/* app change: 42 pt (template had 32) so phones scan it easily; clears the gold frame */}
+            {p.qrDataUrl ? <Image src={p.qrDataUrl} style={{ width: 42, height: 42 }} /> : null}
+            <View style={{ marginLeft: 8 }}>
               <Text style={{ fontFamily: "Cinzel", fontWeight: 600, fontSize: 6.5, letterSpacing: 1.4, color: "#6b6b6b" }}>
                 SCAN TO VERIFY
               </Text>

@@ -1,5 +1,5 @@
 import {
-  Award, Baby, Bell, BookOpen, Bookmark, CalendarCheck, ChartPie, Church, ClipboardList, Cross, FileBarChart,
+  Award, Baby, Wallet, Bell, BookOpen, Bookmark, CalendarCheck, ChartPie, Church, ClipboardList, Cross, FileBarChart,
   FileText, Flag, Folder, Gift, Globe, GraduationCap, Heart, House, Image, Inbox, KeyRound, Layers,
   LayoutDashboard, Library, Music, NotebookPen, PencilLine, School, Settings, ShieldCheck, Smile, Sparkles,
   Star, Sun, Trophy, Upload, UserCog, UserRound, Users, type LucideIcon,
@@ -47,6 +47,7 @@ export const ICON_SET = {
   gift: { icon: Gift, label: "Gift" },
   sun: { icon: Sun, label: "Sun" },
   baby: { icon: Baby, label: "Child" },
+  wallet: { icon: Wallet, label: "Wallet" },
 } satisfies Record<string, { icon: LucideIcon; label: string }>;
 
 export type IconName = keyof typeof ICON_SET;

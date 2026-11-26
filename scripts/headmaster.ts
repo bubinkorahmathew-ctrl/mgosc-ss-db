@@ -1,31 +1,23 @@
 /**
  * npm run super-admin   (npm run headmaster does the same)
  *
- * Creates the super admin, or resets the super admin's password if one exists.
- * The password is typed here, hidden, and only its hash is sent to the database.
+ * Creates the first headmaster (super admin), or resets that password if one exists.
+ * There is no default password anywhere: it is typed here (hidden), or given in the environment.
+ *
+ * Without a terminal (e.g. a deploy step), set all three and it only ever CREATES, once:
+ *   SEED_HEADMASTER_EMAIL, SEED_HEADMASTER_NAME, SEED_HEADMASTER_PASSWORD
+ * Remove SEED_HEADMASTER_PASSWORD from the environment afterwards.
+ *
+ * Reads DATABASE_URL (from .env.local or the environment). Only the password's hash is sent.
  */
 import fs from "node:fs";
-import path from "node:path";
 import { z } from "zod";
+import { createDrizzle } from "@/db/client";
 import { createFirstHeadmaster, findHeadmasters, resetHeadmasterPassword } from "@/lib/authn/headmaster";
-import { configFromEnv, createDatabase, createPool, type TiDbConfig } from "@/lib/db/connection";
+import { newPasswordSchema, PASSWORD_MIN } from "@/lib/validation/auth";
 import { requiredText } from "@/lib/validation/common";
 
-const MIN_LENGTH = 12;
-
-function loadConfig(): TiDbConfig {
-  if (fs.existsSync(".env.local")) process.loadEnvFile(".env.local"); // doesn't override the real environment
-  if (process.env.TIDB_HOST) return configFromEnv();
-  const file = path.resolve("tibcloud.txt");
-  if (!fs.existsSync(file)) return configFromEnv(); // explains what is missing
-  const lines = fs.readFileSync(file, "utf8").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  const field = (k: string) => lines[lines.indexOf(`${k}:`) + 1];
-  // tibcloud.txt says "sys", TiDB's system schema; the app lives in its own database
-  return {
-    host: field("HOST"), port: Number(field("PORT")), user: field("USERNAME"), password: field("PASSWORD"),
-    database: process.env.TIDB_DATABASE || "studentmasterdb",
-  };
-}
+const emailSchema = z.email("Enter a valid email address.").max(254).trim().toLowerCase();
 
 function prompt(question: string, { hidden = false } = {}): Promise<string> {
   const { stdin, stdout } = process;
@@ -66,52 +58,75 @@ function prompt(question: string, { hidden = false } = {}): Promise<string> {
   });
 }
 
-async function askNewPassword(): Promise<string> {
+async function ask<T>(question: string, schema: z.ZodType<T>, hidden = false): Promise<T> {
   for (;;) {
-    const first = await prompt(`New password (at least ${MIN_LENGTH} characters): `, { hidden: true });
-    if ([...first].length < MIN_LENGTH || first.length > 72) {
-      console.log(`Use ${MIN_LENGTH} to 72 characters.`);
-      continue;
-    }
-    if ((await prompt("Type it again: ", { hidden: true })) === first) return first;
-    console.log("They don't match. Try again.");
-  }
-}
-
-async function ask<T>(question: string, schema: z.ZodType<T>): Promise<T> {
-  for (;;) {
-    const parsed = schema.safeParse((await prompt(question)).trim());
+    const parsed = schema.safeParse((await prompt(question, { hidden })).trim());
     if (parsed.success) return parsed.data;
     console.log(parsed.error.issues[0].message);
   }
 }
 
-async function main() {
-  if (!process.stdin.isTTY) throw new Error("Run this yourself in a terminal: it asks for a password.");
-  const pool = createPool(loadConfig());
-  try {
-    const database = createDatabase(pool);
-    const existing = await findHeadmasters(database);
-    const email = z.email("Enter a valid email address.").max(254).toLowerCase();
+async function askNewPassword(): Promise<string> {
+  for (;;) {
+    const first = await ask(`New password (at least ${PASSWORD_MIN} characters): `, newPasswordSchema, true);
+    if ((await prompt("Type it again: ", { hidden: true })) === first) return first;
+    console.log("They don't match. Try again.");
+  }
+}
 
+function fromEnvironment() {
+  const { SEED_HEADMASTER_EMAIL: email, SEED_HEADMASTER_NAME: name, SEED_HEADMASTER_PASSWORD: password } = process.env;
+  if (!email && !name && !password) return null;
+  if (!email || !name || !password) throw new Error("Set all of SEED_HEADMASTER_EMAIL, SEED_HEADMASTER_NAME and SEED_HEADMASTER_PASSWORD, or none.");
+  const check = <T>(schema: z.ZodType<T>, value: string, what: string) => {
+    const parsed = schema.safeParse(value);
+    if (!parsed.success) throw new Error(`${what}: ${parsed.error.issues[0].message}`);
+    return parsed.data;
+  };
+  return {
+    email: check(emailSchema, email, "SEED_HEADMASTER_EMAIL"),
+    full_name: check(requiredText("Name"), name.trim(), "SEED_HEADMASTER_NAME"),
+    password: check(newPasswordSchema, password, "SEED_HEADMASTER_PASSWORD"),
+  };
+}
+
+async function main() {
+  if (fs.existsSync(".env.local")) process.loadEnvFile(".env.local"); // doesn't override the real environment
+  const url = process.env.DATABASE_URL;
+  if (!url) throw new Error("DATABASE_URL is not set (put it in .env.local).");
+  const db = createDrizzle(url);
+  const existing = await findHeadmasters(db);
+  const seed = fromEnvironment();
+
+  if (seed) {
+    if (existing.length) {
+      console.log("A super admin already exists. Nothing was changed.");
+      return;
+    }
+    await createFirstHeadmaster(db, seed);
+    console.log(`Done. Sign in at /login as ${seed.email}, then remove SEED_HEADMASTER_PASSWORD from the environment.`);
+    return;
+  }
+
+  if (!process.stdin.isTTY) throw new Error("Run this in a terminal (it asks for a password), or set the SEED_HEADMASTER_* variables.");
+  try {
     if (!existing.length) {
       console.log("No super admin yet. Creating the account.\n");
-      const address = await ask("Email (used to sign in): ", email);
+      const email = await ask("Email (used to sign in): ", emailSchema);
       const fullName = await ask("Full name: ", requiredText("Name"));
-      await createFirstHeadmaster(database, { email: address, full_name: fullName, password: await askNewPassword() });
-      console.log(`\nDone. Sign in at /login as ${address}`);
+      await createFirstHeadmaster(db, { email, full_name: fullName, password: await askNewPassword() });
+      console.log(`\nDone. Sign in at /login as ${email}`);
       return;
     }
 
     console.log("A super admin account already exists:");
     for (const h of existing) console.log(`  ${h.full_name} <${h.email}>`);
     console.log("\nTo reset that password, type its email (Ctrl+C to cancel).");
-    const address = await ask("Email: ", email);
-    if (!existing.some((h) => h.email === address)) throw new Error("That is not a super admin's email. Nothing was changed.");
-    await resetHeadmasterPassword(database, address, await askNewPassword());
+    const email = await ask("Email: ", emailSchema);
+    if (!existing.some((h) => h.email === email)) throw new Error("That is not a super admin's email. Nothing was changed.");
+    await resetHeadmasterPassword(db, email, await askNewPassword());
     console.log("\nPassword reset. Every device was signed out.");
   } finally {
-    await pool.end();
     process.stdin.destroy(); // pause() alone can keep the process alive
   }
 }

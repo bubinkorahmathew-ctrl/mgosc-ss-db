@@ -14,7 +14,8 @@ Built with Next.js 16 (App Router), TiDB Cloud (MySQL), Tailwind + shadcn/ui.
 ## 2. Database
 
 Create a database (for example `studentmasterdb`, never `sys`) and run every file in
-`tidb/migrations/` **in name order**, each once.
+the Drizzle migrations: put the connection string in `.env.local` as `DATABASE_URL` and run
+`npm run db:migrate`. (A database created before Drizzle: run `npm run db:baseline -- --apply` once first.)
 
 ## 3. Environment variables
 

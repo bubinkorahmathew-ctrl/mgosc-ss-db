@@ -1,17 +1,17 @@
 import type { Metadata } from "next";
 import { requireRole } from "@/lib/auth";
-import { getClassOptions } from "@/lib/data/classes";
-import { prayerUnitOptions } from "@/lib/data/students";
+import { getClassOptions } from "@/lib/repo/classes";
+import { prayerUnitOptions } from "@/lib/repo/students";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { StudentForm } from "@/components/students/student-form";
 
 export const metadata: Metadata = { title: "Add student" };
 
 export default async function TeacherNewStudentPage({ searchParams }: PageProps<"/teacher/students/new">) {
-  await requireRole("teacher");
+  const user = await requireRole("teacher");
   const sp = await searchParams;
   // the policies return only the teacher's classes
-  const [classes, prayerUnits] = await Promise.all([getClassOptions({ currentOnly: true }), prayerUnitOptions()]);
+  const [classes, prayerUnits] = await Promise.all([getClassOptions(user, { currentOnly: true }), prayerUnitOptions(user)]);
   if (!classes.length) {
     return <EmptyState title="No class in the current year is assigned to you.">Please ask an admin to assign your class.</EmptyState>;
   }

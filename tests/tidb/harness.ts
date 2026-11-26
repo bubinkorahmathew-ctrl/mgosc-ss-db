@@ -8,11 +8,15 @@ import { randomBytes } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
 import { parseEnv } from "node:util";
-import mysql from "mysql2/promise";
+import { connect } from "@tidbcloud/serverless";
+import { drizzle } from "drizzle-orm/tidb-serverless";
+import { migrate } from "drizzle-orm/tidb-serverless/migrator";
 import { FATHER_NAME_PLACEHOLDER, NOT_ASSIGNED_PRAYER_UNIT } from "@/lib/config";
 import { todayISO } from "@/lib/dates";
 import { createDb } from "@/lib/db/client";
-import { createDatabase, createPool, executor, type Database, type TiDbConfig } from "@/lib/db/connection";
+import { connectTiDb, createDatabase, executor, type Database, type Executor } from "@/lib/db/connection";
+import { setTestDatabase } from "@/lib/db";
+import { createDrizzle, setTestDrizzle } from "@/db/client";
 import { translateError } from "@/lib/db/errors";
 import { COLUMNS, type TableName } from "@/lib/db/schema";
 import { toDb } from "@/lib/db/values";
@@ -22,29 +26,29 @@ export { IDS } from "../db/harness";
 
 const root = path.resolve(__dirname, "..", "..");
 
-function testConfig(): Omit<TiDbConfig, "database"> {
-  // the app's own settings first: .env.local is what `npm run dev` uses
+/** Until a test database exists, lib/repo must never fall through to DATABASE_URL (the live database). */
+const NO_DATABASE: Database = {
+  query: () => Promise.reject(new Error("no test database: call createTiDbTest() first")),
+  transaction: () => Promise.reject(new Error("no test database: call createTiDbTest() first")),
+};
+setTestDatabase(NO_DATABASE);
+setTestDrizzle(createDrizzle("mysql://no-test-database.invalid:4000/none"));
+
+/** DATABASE_URL from the environment or .env.local: the test databases live on the same cluster. */
+function serverUrl(): URL {
   const envFile = path.join(root, ".env.local");
   const local: Record<string, string | undefined> = fs.existsSync(envFile) ? parseEnv(fs.readFileSync(envFile, "utf8")) : {};
-  const pick = (k: string) => process.env[k] || local[k];
-  const [TIDB_HOST, TIDB_PORT, TIDB_USER, TIDB_PASSWORD] = ["TIDB_HOST", "TIDB_PORT", "TIDB_USER", "TIDB_PASSWORD"].map(pick);
-  if (TIDB_HOST && TIDB_USER && TIDB_PASSWORD) {
-    return { host: TIDB_HOST, port: Number(TIDB_PORT || 4000), user: TIDB_USER, password: TIDB_PASSWORD };
-  }
-  const file = path.join(root, "tibcloud.txt");
-  if (!fs.existsSync(file)) throw new Error("Set TIDB_HOST, TIDB_USER and TIDB_PASSWORD (or .env.local) to run the TiDB tests.");
-  const lines = fs.readFileSync(file, "utf8").split(/\r?\n/).map((l) => l.trim()).filter(Boolean);
-  const field = (k: string) => lines[lines.indexOf(`${k}:`) + 1];
-  return { host: field("HOST"), port: Number(field("PORT")), user: field("USERNAME"), password: field("PASSWORD") };
+  const url = process.env.DATABASE_URL || local.DATABASE_URL;
+  if (!url) throw new Error("Set DATABASE_URL (or .env.local) to run the TiDB tests.");
+  return new URL(url);
 }
-
 const TABLES: TableName[] = [
   "profiles", "academic_years", "classes", "class_teachers", "students", "registrations", "registration_attempts",
   "subjects", "exams", "marks", "attendance", "activities", "certificates", "school_settings", "number_counters",
 ];
 
 /** Tables that exist only on TiDB: the Postgres spec has nothing to compare them with. */
-export const TIDB_ONLY_TABLES: ReadonlySet<TableName> = new Set<TableName>(["prayer_units", "exam_attendance"]);
+export const TIDB_ONLY_TABLES: ReadonlySet<TableName> = new Set<TableName>(["prayer_units", "exam_attendance", "grade_scales", "toppers"]);
 
 /** A date n days before today (India time): teachers write attendance only 14 days back. */
 export const daysAgo = (n: number) => new Date(Date.parse(todayISO()) - n * 864e5).toISOString().slice(0, 10);
@@ -56,6 +60,10 @@ export const PRAYER_UNIT = "70000000-0000-4000-8000-000000000001";
 function tidbOnly(table: TableName, j: Record<string, unknown>): Record<string, unknown> {
   if (table === "attendance") return { updated_at: new Date().toISOString() };
   if (table === "marks") return { is_absent: false };
+  if (table === "subjects") return { pass_percent: 40 };
+  if (table === "exams") return { weight: 1 };
+  if (table === "school_settings") return { attendance_topper_min_pct: 50, timezone: "Asia/Riyadh", currency_code: "SAR", currency_symbol: "SAR" };
+  if (table === "number_counters") return { name: j.kind };
   if (table !== "students" && table !== "registrations") return {};
   return {
     prayer_unit_id: NOT_ASSIGNED_PRAYER_UNIT,
@@ -64,7 +72,7 @@ function tidbOnly(table: TableName, j: Record<string, unknown>): Record<string, 
   };
 }
 
-async function copyFixture(pg: TestDb, to: mysql.Connection) {
+async function copyFixture(pg: TestDb, to: Executor) {
   await to.query("delete from school_settings"); // the migration's default row
   for (const table of TABLES) {
     const { rows } = await pg.query<{ j: Record<string, unknown> }>(`select to_jsonb(t) as j from public.${table} t`);
@@ -84,48 +92,42 @@ export async function createTiDbTest(extendFixture?: (pg: TestDb) => Promise<voi
   const pg = await createTestDb();
   await extendFixture?.(pg);
 
-  const config = { ...testConfig(), database: `smdb_test_${randomBytes(6).toString("hex")}` };
-  const connect = () => mysql.createConnection({
-    host: config.host, port: config.port, user: config.user, password: config.password,
-    ssl: { minVersion: "TLSv1.2", rejectUnauthorized: true }, timezone: "Z", stringifyObjects: true,
-  });
-  const admin = await connect();
-  await admin.query(`create database \`${config.database}\` character set utf8mb4 collate utf8mb4_bin`);
+  const name = `smdb_test_${randomBytes(6).toString("hex")}`;
+  const server = serverUrl();
+  const at = (database: string) => Object.assign(new URL(server), { pathname: `/${database}` }).toString();
+  // only ever runs "create database" and "drop database" for this random name
+  const admin = executor(connectTiDb(server.toString()));
+  await admin.query(`create database \`${name}\` character set utf8mb4 collate utf8mb4_bin`);
+  const url = at(name);
 
-  const pool = createPool(config);
   const destroy = async () => {
-    await pool.end().catch(() => {});
-    // a new connection: TiDB Cloud closes idle ones, and a long test file leaves the first idle
-    admin.destroy();
-    const cleaner = await connect();
-    await cleaner.query(`drop database if exists \`${config.database}\``);
-    await cleaner.end();
+    setTestDatabase(NO_DATABASE);
+setTestDrizzle(createDrizzle("mysql://no-test-database.invalid:4000/none"));
+    await admin.query(`drop database if exists \`${name}\``);
     await pg.close();
   };
 
   try {
-    await admin.query(`use \`${config.database}\``);
-    await admin.query("set time_zone = '+00:00'");
-    const dir = path.join(root, "tidb", "migrations");
-    for (const file of fs.readdirSync(dir).filter((f) => f.endsWith(".sql")).sort()) {
-      const sql = fs.readFileSync(path.join(dir, file), "utf8").replace(/--.*$/gm, "");
-      for (const statement of sql.split(/;\s*(?:\r?\n|$)/).map((s) => s.trim()).filter(Boolean)) await admin.query(statement);
-    }
-    await copyFixture(pg, admin);
+    const setup = executor(connectTiDb(url));
+    // the same Drizzle migrations that build the real database
+    await migrate(drizzle({ client: connect({ url }) }), { migrationsFolder: path.join(root, "db", "migrations") });
+    await copyFixture(pg, setup);
     // the spec's headmaster had every right: that is today's super admin
-    await admin.query("update profiles set is_super = true where role = 'headmaster'");
+    await setup.query("update profiles set is_super = true where role = 'headmaster'");
   } catch (e) {
     await destroy();
     throw e;
   }
 
-  const database = createDatabase(pool);
+  const database = createDatabase(url);
+  // lib/repo, lib/authn and anything using getDatabase/getDb now work on this test database
+  setTestDatabase(database);
+  setTestDrizzle(createDrizzle(url));
 
   /** Everything done through the returned Database disappears on end(). */
   async function sandbox() {
-    const connection = await pool.getConnection();
-    await connection.query("begin pessimistic");
-    const direct = executor(connection);
+    const tx = await connectTiDb(url).begin();
+    const direct = executor(tx, { serial: true });
     let depth = 0;
     const scoped: Database = {
       async query(sql, params) {
@@ -136,12 +138,12 @@ export async function createTiDbTest(extendFixture?: (pg: TestDb) => Promise<voi
         }
       },
       async transaction(fn) {
-        const name = `sp${++depth}`;
-        await connection.query(`savepoint ${name}`);
+        const savepoint = `sp${++depth}`;
+        await direct.query(`savepoint ${savepoint}`);
         try {
           return await fn(direct);
         } catch (e) {
-          await connection.query(`rollback to savepoint ${name}`);
+          await direct.query(`rollback to savepoint ${savepoint}`);
           throw translateError(e);
         }
       },
@@ -150,14 +152,15 @@ export async function createTiDbTest(extendFixture?: (pg: TestDb) => Promise<voi
       database: scoped,
       raw: direct.query,
       as: (userId: string | null) => createDb(scoped, userId),
+      /** Points lib/repo at this sandbox until end(). */
+      use: () => setTestDatabase(scoped),
       end: async () => {
-        await connection.query("rollback");
-        connection.release();
+        setTestDatabase(database);
+        await tx.rollback();
       },
     };
   }
-
-  return { pg, database, sandbox, destroy, name: config.database, as: (userId: string | null) => createDb(database, userId) };
+  return { pg, database, sandbox, destroy, url, name, as: (userId: string | null) => createDb(database, userId) };
 }
 
 export type TiDbTest = Awaited<ReturnType<typeof createTiDbTest>>;

@@ -1,16 +1,18 @@
 import "server-only";
 import { getCurrentUser, type CurrentUser } from "@/lib/auth";
-import { getSettings } from "@/lib/data/settings";
+import { getSettings } from "@/lib/repo/settings";
 import { loadBanner, loadBrandingImage } from "@/lib/pdf/images";
 
 export function textResponse(status: number, message: string) {
   return new Response(message, { status, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
 }
 
-/** Signed-in, active staff only. Data access is then limited by RLS. */
+/** Signed-in, active school staff (admins and teachers) only. Data access is then limited by the policies. */
 export async function apiUser(): Promise<CurrentUser | Response> {
   const user = await getCurrentUser();
-  return user ?? textResponse(401, "Please sign in again.");
+  if (!user) return textResponse(401, "Please sign in again.");
+  if (user.profile.role !== "headmaster" && user.profile.role !== "teacher") return textResponse(403, "Not allowed.");
+  return user;
 }
 
 export function pdfResponse(buf: Buffer, filename: string, download: boolean) {
@@ -24,10 +26,10 @@ export function pdfResponse(buf: Buffer, filename: string, download: boolean) {
   });
 }
 
-export async function getBranding() {
-  const settings = await getSettings();
+export async function getBranding(user: CurrentUser) {
+  const settings = await getSettings(user);
   const [banner, logo, signature] = await Promise.all([
-    loadBanner(), loadBrandingImage(settings.logo_url), loadBrandingImage(settings.signature_url),
+    loadBanner(), loadBrandingImage(user, settings.logo_url), loadBrandingImage(user, settings.signature_url),
   ]);
   return { schoolName: settings.school_name, address: settings.address, headmasterName: settings.headmaster_name, banner, logo, signature };
 }

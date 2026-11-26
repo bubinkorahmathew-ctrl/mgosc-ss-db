@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { requireRole } from "@/lib/auth";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
-import { getStudentProfile } from "@/lib/data/student-profile";
+import { getStudentProfile } from "@/lib/repo/student-profile";
 import { PageHeader } from "@/components/page-header";
 import { StudentProfileView } from "@/components/students/student-profile-view";
 
@@ -10,9 +11,10 @@ export const metadata: Metadata = { title: "Student" };
 
 /** Read-only profile. RLS returns nothing for students outside the teacher's classes -> 404. */
 export default async function TeacherStudentPage({ params }: PageProps<"/teacher/students/[id]">) {
+  const user = await requireRole("teacher");
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const profile = await getStudentProfile(id);
+  const profile = await getStudentProfile(user, id);
   if (!profile) notFound();
   const s = profile.student;
 

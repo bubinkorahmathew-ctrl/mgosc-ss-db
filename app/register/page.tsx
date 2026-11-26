@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Loader2 } from "lucide-react";
 import { Banner } from "@/components/brand";
-import { getPrayerUnits } from "@/lib/data/students";
+import { getPrayerUnits } from "@/lib/repo/students";
 import { RegistrationForm } from "./registration-form";
 
 export const metadata: Metadata = { title: "Register a student" };
@@ -28,6 +28,6 @@ export default function RegisterPage() {
 
 /** The prayer units come from the database, so the form waits for them. */
 async function Form() {
-  const units = (await getPrayerUnits()).filter((u) => u.active);
+  const units = (await getPrayerUnits(null)).filter((u) => u.active);
   return <RegistrationForm prayerUnits={units.map(({ id, name }) => ({ id, name }))} />;
 }

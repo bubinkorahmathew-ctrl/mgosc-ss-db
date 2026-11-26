@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
+import { requireRole } from "@/lib/auth";
 import Link from "next/link";
 import { Plus } from "lucide-react";
-import { getPrayerUnits, listStudents } from "@/lib/data/students";
-import { getClassOptions } from "@/lib/data/classes";
+import { getPrayerUnits, listStudents } from "@/lib/repo/students";
+import { getClassOptions } from "@/lib/repo/classes";
 import { studentFiltersSchema } from "@/lib/validation/student";
 import { Button } from "@/components/ui/button";
 import { PageHeader } from "@/components/page-header";
@@ -12,9 +13,10 @@ import { Pagination, StudentsTable } from "@/components/students/students-table"
 export const metadata: Metadata = { title: "Students" };
 
 export default async function StudentsPage({ searchParams }: PageProps<"/admin/students">) {
+  const user = await requireRole("headmaster");
   const sp = await searchParams;
   const filters = studentFiltersSchema.parse(sp);
-  const [result, classes, prayerUnits] = await Promise.all([listStudents(filters), getClassOptions(), getPrayerUnits()]);
+  const [result, classes, prayerUnits] = await Promise.all([listStudents(user, filters), getClassOptions(user), getPrayerUnits(user)]);
 
   return (
     <>

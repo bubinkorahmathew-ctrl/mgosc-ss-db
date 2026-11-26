@@ -1,140 +1,196 @@
-import { randomUUID } from "node:crypto";
+/**
+ * Phase S2 sign-in on a throwaway TiDB database: lockout, forced password change, sign-ins that
+ * stop working after a reset or deactivation, the old-hash upgrade and the headmaster seed.
+ * Auth.js itself only carries { id, authAt } in its cookie; everything checked here is ours.
+ */
+import { randomBytes, randomUUID, scryptSync } from "node:crypto";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { createDrizzle, type Db } from "@/db/client";
+import { beginLoginAttempt, LOGIN_LIMITS } from "@/lib/authn/attempts";
 import {
   createTeacherAccount, listTeacherEmails, resetTeacherAccountPassword, setTeacherAccountActive, updateTeacherAccount,
 } from "@/lib/authn/accounts";
+import { createAdminAccount, resetAdminAccountPassword } from "@/lib/authn/admins";
 import { createFirstHeadmaster, resetHeadmasterPassword } from "@/lib/authn/headmaster";
-import { changePassword, signInWithPassword } from "@/lib/authn/login";
+import { changeOwnPassword, checkLogin, type Client, loadSessionUser, loginTarget, SESSION_DAYS, type SessionClaims } from "@/lib/authn/login";
 import { hashPassword } from "@/lib/authn/password";
-import { endSession, resolveSession, SESSION_DAYS } from "@/lib/authn/session";
-import { beginAttempt, SIGN_IN_LIMITS } from "@/lib/authn/throttle";
 import type { TableName } from "@/lib/db/schema";
 import { createTiDbTest, IDS, type TiDbTest } from "./harness";
 
 const HEAD = { email: "head@test.invalid", password: "test-only-headmaster-pass" };
+const SECRET = "test-secret-that-is-long-enough-1234567890";
 
 let t: TiDbTest;
+let db: Db;
 beforeAll(async () => {
   t = await createTiDbTest();
-  await t.database.query("insert into users (id, email, password_hash) values (?, ?, ?)",
-    [IDS.headmaster, HEAD.email, await hashPassword(HEAD.password)]);
+  db = createDrizzle(t.url);
+  await t.database.query("insert into users (id, email, password_hash, password_changed_at) values (?, ?, ?, ?)",
+    [IDS.headmaster, HEAD.email, await hashPassword(HEAD.password), new Date(Date.now() - 60_000)]);
 });
 afterAll(async () => {
   await t?.destroy();
 });
 
-const client = () => ({ ip: randomUUID(), salt: "test-salt" });
-const signIn = (email: string, password: string, from = client()) => signInWithPassword(t.database, email, password, from);
+const device = (): Client => ({ device: randomUUID(), secret: SECRET });
+const login = (email: string, password: string, from = device(), now?: Date) => checkLogin(db, email, password, from, now);
 
-async function tokenFor(email: string, password: string) {
-  const result = await signIn(email, password);
+/** What Auth.js would put in the cookie after this sign-in. */
+async function claimsFor(email: string, password: string): Promise<SessionClaims> {
+  const result = await login(email, password);
   if (!result.ok) throw new Error(result.reason);
-  return result.session.token;
+  return { id: result.user.id, authAt: result.user.authAt };
 }
+const user = (claims: SessionClaims) => loadSessionUser(db, claims);
+
 async function newTeacher(class_ids: string[] = [IDS.class1]) {
   const email = `${randomUUID()}@test.invalid`;
   const { id, password } = await createTeacherAccount(t.database, IDS.headmaster,
     { email, full_name: "Test Teacher", phone: null, class_ids });
   return { id, email, password };
 }
+/** A teacher who has already replaced the temporary password. */
+async function settledTeacher() {
+  const teacher = await newTeacher();
+  const password = `own-${randomUUID()}`;
+  const changed = await changeOwnPassword(db, teacher.id, teacher.password, password, device());
+  if (!changed.ok) throw new Error(changed.reason);
+  return { ...teacher, password };
+}
 
 describe("sign in", () => {
-  it("returns the role and a working session", async () => {
-    const result = await signIn(HEAD.email, HEAD.password);
-    expect(result).toMatchObject({ ok: true, role: "headmaster" });
+  it("returns the role, and the sign-in resolves to the profile", async () => {
+    const result = await login(HEAD.email, HEAD.password);
+    expect(result).toMatchObject({ ok: true, user: { id: IDS.headmaster, role: "headmaster", mustChangePassword: false } });
     if (!result.ok) return;
-    const user = await resolveSession(t.database, result.session.token);
-    expect(user).toMatchObject({ id: IDS.headmaster, email: HEAD.email, profile: { role: "headmaster", active: true } });
-    expect(Object.keys(user!.profile).sort()).toEqual(["active", "created_at", "full_name", "id", "phone", "role"]);
+    expect(await user({ id: result.user.id, authAt: result.user.authAt })).toMatchObject({
+      id: IDS.headmaster, email: HEAD.email, mustChangePassword: false, profile: { role: "headmaster", active: true },
+    });
+    expect(await loginTarget(db, HEAD.email.toUpperCase())).toEqual({ role: "headmaster", mustChangePassword: false });
   });
 
   it("an unknown email and a wrong password look identical", async () => {
-    const a = await signIn("nobody@test.invalid", "whatever");
-    const b = await signIn(HEAD.email, "whatever");
-    expect(a).toEqual({ ok: false, reason: "wrong" });
+    const a = await login("nobody@test.invalid", "whatever");
+    const b = await login(HEAD.email, "whatever");
+    expect(a).toEqual({ ok: false, reason: "invalid" });
     expect(b).toEqual(a);
   });
 
   it("quotes in the email are data", async () => {
-    expect(await signIn("' or '1'='1", HEAD.password)).toEqual({ ok: false, reason: "wrong" });
+    expect(await login("' or '1'='1", HEAD.password)).toEqual({ ok: false, reason: "invalid" });
   });
 
-  it("the database stores neither the token nor the password", async () => {
+  it("the database stores neither the password nor an email or address in the lockout table", async () => {
     const teacher = await newTeacher();
-    const token = await tokenFor(teacher.email, teacher.password);
-    const rows = [
-      ...(await t.database.query("select * from sessions where user_id = ?", [teacher.id])),
-      ...(await t.database.query("select * from users where id = ?", [teacher.id])),
-    ];
-    expect(JSON.stringify(rows)).not.toContain(token);
-    expect(JSON.stringify(rows)).not.toContain(teacher.password);
+    await login(teacher.email, "a-wrong-guess", { device: "203.0.113.9", secret: SECRET });
+    expect(JSON.stringify(await t.database.query("select * from users where id = ?", [teacher.id]))).not.toContain(teacher.password);
+    const attempts = JSON.stringify(await t.database.query("select * from login_attempts"));
+    expect(attempts).not.toContain(teacher.email);
+    expect(attempts).not.toContain("203.0.113.9");
   });
 
   it("a deactivated account is told so only with the right password", async () => {
     const teacher = await newTeacher();
     await setTeacherAccountActive(t.database, IDS.headmaster, teacher.id, false);
-    expect(await signIn(teacher.email, "guess")).toEqual({ ok: false, reason: "wrong" });
-    expect(await signIn(teacher.email, teacher.password)).toEqual({ ok: false, reason: "inactive" });
+    expect(await login(teacher.email, "guess-guess")).toEqual({ ok: false, reason: "invalid" });
+    expect(await login(teacher.email, teacher.password)).toEqual({ ok: false, reason: "inactive" });
   });
 
-  it("a reset during sign-in never leaves a session for the old password", async () => {
+  it("records the time of the last sign-in", async () => {
     const teacher = await newTeacher();
-    const [login] = await Promise.all([
-      signIn(teacher.email, teacher.password),
-      resetTeacherAccountPassword(t.database, IDS.headmaster, teacher.id),
-    ]);
-    if (login.ok) expect(await resolveSession(t.database, login.session.token)).toBeNull();
-    expect(await t.database.query("select 1 from sessions where user_id = ?", [teacher.id])).toEqual([]);
+    await login(teacher.email, teacher.password);
+    const [row] = await t.database.query<{ at: Date | null }>("select last_login_at at from users where id = ?", [teacher.id]);
+    expect(row.at).not.toBeNull();
+  });
+
+  it("an old (scrypt) password still works once, and is then stored as bcrypt", async () => {
+    const teacher = await newTeacher();
+    const salt = randomBytes(16);
+    const key = scryptSync("an-old-password", salt, 32, { N: 2 ** 15, r: 8, p: 3, maxmem: 128 * 1024 * 1024 });
+    const old = ["scrypt", 15, 8, 3, salt.toString("base64url"), key.toString("base64url")].join("$");
+    await t.database.query("update users set password_hash = ? where id = ?", [old, teacher.id]);
+    expect((await login(teacher.email, "an-old-password")).ok).toBe(true);
+    const [row] = await t.database.query<{ h: string }>("select password_hash h from users where id = ?", [teacher.id]);
+    expect(row.h).toMatch(/^\$2[aby]\$12\$/);
+    expect((await login(teacher.email, "an-old-password")).ok).toBe(true);
+  });
+
+  it("a reset during sign-in never leaves a working sign-in for the old password", async () => {
+    for (let i = 0; i < 3; i++) {
+      const teacher = await settledTeacher();
+      const [result] = await Promise.all([
+        login(teacher.email, teacher.password),
+        resetTeacherAccountPassword(t.database, IDS.headmaster, teacher.id),
+      ]);
+      if (result.ok) expect(await user({ id: result.user.id, authAt: result.user.authAt })).toBeNull();
+    }
   });
 });
 
-describe("sessions", () => {
-  it("expire", async () => {
-    const token = await tokenFor(HEAD.email, HEAD.password);
-    const later = new Date(Date.now() + SESSION_DAYS * 86_400_000 + 60_000);
-    expect(await resolveSession(t.database, token, later)).toBeNull();
+describe("sign-ins (the JWT claims)", () => {
+  it("expire after 14 days however often they are used", async () => {
+    const claims = await claimsFor(HEAD.email, HEAD.password);
+    const later = claims.authAt + SESSION_DAYS * 86_400_000 + 60_000;
+    expect(await loadSessionUser(db, claims, later)).toBeNull();
+    expect(await loadSessionUser(db, claims, claims.authAt + 86_400_000)).not.toBeNull();
   });
 
-  it("sign-out ends only that device's session", async () => {
-    const one = await tokenFor(HEAD.email, HEAD.password);
-    const two = await tokenFor(HEAD.email, HEAD.password);
-    await endSession(t.database, one);
-    expect(await resolveSession(t.database, one)).toBeNull();
-    expect(await resolveSession(t.database, two)).not.toBeNull();
-  });
-
-  it("forged and malformed tokens are refused", async () => {
-    for (const token of [undefined, "", "x", "A".repeat(43), `${"A".repeat(42)}'`, "A".repeat(5000)]) {
-      expect(await resolveSession(t.database, token)).toBeNull();
+  it("forged and malformed claims are refused", async () => {
+    const now = Date.now();
+    for (const claims of [null, undefined, {}, { id: IDS.headmaster }, { id: "x", authAt: now },
+      { id: `${IDS.headmaster}' or 1=1`, authAt: now }, { id: IDS.headmaster, authAt: now + 3_600_000 },
+      { id: randomUUID(), authAt: now }]) {
+      expect(await loadSessionUser(db, claims as SessionClaims)).toBeNull();
     }
   });
 
   it("stop working as soon as the profile is inactive, however that happened", async () => {
-    const teacher = await newTeacher();
-    const token = await tokenFor(teacher.email, teacher.password);
+    const teacher = await settledTeacher();
+    const claims = await claimsFor(teacher.email, teacher.password);
     await t.database.query("update profiles set active = false where id = ?", [teacher.id]);
-    expect(await resolveSession(t.database, token)).toBeNull();
+    expect(await user(claims)).toBeNull();
   });
 
   it("are not revived by re-activation", async () => {
-    const teacher = await newTeacher();
-    const token = await tokenFor(teacher.email, teacher.password);
+    const teacher = await settledTeacher();
+    const claims = await claimsFor(teacher.email, teacher.password);
     await setTeacherAccountActive(t.database, IDS.headmaster, teacher.id, false);
     await setTeacherAccountActive(t.database, IDS.headmaster, teacher.id, true);
-    expect(await resolveSession(t.database, token)).toBeNull();
+    expect(await user(claims)).toBeNull();
+    expect(await user(await claimsFor(teacher.email, teacher.password))).not.toBeNull();
   });
 });
 
-describe("rate limit", () => {
-  const { pair, ip, account } = SIGN_IN_LIMITS;
-  const attempt = (who: string, from: string, now?: Date) => beginAttempt(t.database, who, from, "test-salt", now);
+describe("lockout", () => {
+  const { pair, device: byDevice, account } = LOGIN_LIMITS;
+  const attempt = (who: string, from: string, now?: Date) => beginLoginAttempt(db, { account: who, device: from, secret: SECRET, now });
 
-  it("blocks one account from one address, even with the right password", async () => {
+  it("5 failures from one device lock that account there, even with the right password", async () => {
+    expect(pair).toEqual({ max: 5, minutes: 15 });
     const teacher = await newTeacher();
-    const from = client();
-    for (let i = 0; i < pair.max; i++) expect(await signIn(teacher.email, "guess", from)).toEqual({ ok: false, reason: "wrong" });
-    expect(await signIn(teacher.email, teacher.password, from)).toEqual({ ok: false, reason: "limited" });
-    expect((await signIn(teacher.email, teacher.password)).ok).toBe(true); // another address
+    const from = device();
+    for (let i = 0; i < pair.max; i++) expect(await login(teacher.email, "guess-guess", from)).toEqual({ ok: false, reason: "invalid" });
+    expect(await login(teacher.email, teacher.password, from)).toEqual({ ok: false, reason: "limited" });
+    expect((await login(teacher.email, teacher.password)).ok).toBe(true); // another device
+  });
+
+  it("lifts after 15 minutes, and retrying while locked doesn't extend it", async () => {
+    const teacher = await newTeacher();
+    const from = device();
+    const start = new Date();
+    const at = (minutes: number) => new Date(start.getTime() + minutes * 60_000);
+    for (let i = 0; i < pair.max; i++) await login(teacher.email, "guess-guess", from, start);
+    expect(await login(teacher.email, teacher.password, from, at(14))).toEqual({ ok: false, reason: "limited" });
+    expect((await login(teacher.email, teacher.password, from, at(16))).ok).toBe(true);
+  });
+
+  it("a successful sign-in clears that device's failures", async () => {
+    const teacher = await newTeacher();
+    const from = device();
+    for (let i = 0; i < pair.max - 1; i++) await login(teacher.email, "guess-guess", from);
+    expect((await login(teacher.email, teacher.password, from)).ok).toBe(true);
+    for (let i = 0; i < pair.max - 1; i++) await login(teacher.email, "guess-guess", from);
+    expect((await login(teacher.email, teacher.password, from)).ok).toBe(true);
   });
 
   it("parallel guesses can't slip through", async () => {
@@ -144,13 +200,13 @@ describe("rate limit", () => {
     expect(all.filter((a) => a.allowed).length).toBeLessThanOrEqual(pair.max);
   });
 
-  it("blocks one address trying many accounts", async () => {
+  it("one device trying many accounts is stopped", async () => {
     const from = randomUUID();
-    for (let i = 0; i < ip.max; i++) expect((await attempt(randomUUID(), from)).allowed).toBe(true);
+    for (let i = 0; i < byDevice.max; i++) expect((await attempt(randomUUID(), from)).allowed).toBe(true);
     expect((await attempt(randomUUID(), from)).allowed).toBe(false);
   });
 
-  it("blocks one account from many addresses", async () => {
+  it("one account tried from many devices has a wider limit", async () => {
     const who = randomUUID();
     for (let i = 0; i < account.max; i++) expect((await attempt(who, randomUUID())).allowed).toBe(true);
     expect((await attempt(who, randomUUID())).allowed).toBe(false);
@@ -158,58 +214,77 @@ describe("rate limit", () => {
 
   it("successful sign-ins from a shared address don't count", async () => {
     const from = randomUUID();
-    for (let i = 0; i < ip.max + 2; i++) {
+    for (let i = 0; i < byDevice.max + 2; i++) {
       const a = await attempt(randomUUID(), from);
       if (!a.allowed) throw new Error("blocked");
       await a.succeeded();
     }
   });
+});
 
-  it("lifts after the window, and retrying while blocked doesn't extend it", async () => {
-    const who = randomUUID();
-    const from = randomUUID();
-    const start = new Date();
-    const at = (minutes: number) => new Date(start.getTime() + minutes * 60_000);
-    for (let i = 0; i < pair.max; i++) await attempt(who, from, start);
-    expect((await attempt(who, from, at(pair.minutes - 1))).allowed).toBe(false);
-    expect((await attempt(who, from, at(pair.minutes + 1))).allowed).toBe(true);
+describe("temporary passwords (forced change)", () => {
+  it("a new teacher must choose a password before anything else", async () => {
+    const teacher = await newTeacher();
+    const result = await login(teacher.email, teacher.password);
+    expect(result).toMatchObject({ ok: true, user: { role: "teacher", mustChangePassword: true } });
+    if (!result.ok) return;
+    expect(await user({ id: teacher.id, authAt: result.user.authAt })).toMatchObject({ mustChangePassword: true });
+
+    const fresh = "my-own-new-password";
+    expect(await changeOwnPassword(db, teacher.id, teacher.password, fresh, device())).toEqual({ ok: true, email: teacher.email });
+    // the sign-in made with the temporary password is over; a new one with the new password is normal
+    expect(await user({ id: teacher.id, authAt: result.user.authAt })).toBeNull();
+    const again = await claimsFor(teacher.email, fresh);
+    expect(await user(again)).toMatchObject({ mustChangePassword: false });
+    expect((await login(teacher.email, teacher.password)).ok).toBe(false);
   });
 
-  it("stores neither the email nor the IP", async () => {
-    await attempt("private@test.invalid", "203.0.113.9");
-    const all = JSON.stringify(await t.database.query("select * from sign_in_attempts"));
-    expect(all).not.toContain("private@test.invalid");
-    expect(all).not.toContain("203.0.113.9");
+  it("new admins get one too, and so does every reset", async () => {
+    const email = `${randomUUID()}@test.invalid`;
+    const temp = await createAdminAccount(t.database, IDS.headmaster, { email, full_name: "New Admin" });
+    expect(temp.length).toBeGreaterThanOrEqual(10);
+    expect(await login(email, temp)).toMatchObject({ ok: true, user: { role: "headmaster", mustChangePassword: true } });
+
+    const [{ id }] = await t.database.query<{ id: string }>("select id from users where email = ?", [email]);
+    await changeOwnPassword(db, id, temp, "admin-own-password", device());
+    const claims = await claimsFor(email, "admin-own-password");
+    const reset = await resetAdminAccountPassword(t.database, IDS.headmaster, id);
+    expect(await user(claims)).toBeNull();
+    expect(await login(email, reset)).toMatchObject({ ok: true, user: { mustChangePassword: true } });
+  });
+
+  it("the temporary password is shown once and only its hash is stored", async () => {
+    const teacher = await newTeacher();
+    const [row] = await t.database.query<{ h: string; m: number }>("select password_hash h, must_change_password m from users where id = ?", [teacher.id]);
+    expect(row.h).not.toContain(teacher.password);
+    expect(Boolean(row.m)).toBe(true);
   });
 });
 
 describe("own password", () => {
-  it("changing it signs out other devices and keeps this one", async () => {
-    const teacher = await newTeacher();
-    const other = await tokenFor(teacher.email, teacher.password);
-    const result = await changePassword(t.database, teacher.id, teacher.password, "a-new-password", client());
-    if (!result.ok) throw new Error(result.reason);
-    expect(await resolveSession(t.database, other)).toBeNull();
-    expect(await resolveSession(t.database, result.session.token)).not.toBeNull();
-    expect((await signIn(teacher.email, teacher.password)).ok).toBe(false);
-    expect((await signIn(teacher.email, "a-new-password")).ok).toBe(true);
+  it("changing it ends every other sign-in", async () => {
+    const teacher = await settledTeacher();
+    const other = await claimsFor(teacher.email, teacher.password);
+    expect((await changeOwnPassword(db, teacher.id, teacher.password, "a-new-password", device())).ok).toBe(true);
+    expect(await user(other)).toBeNull();
+    expect((await login(teacher.email, teacher.password)).ok).toBe(false);
+    expect((await login(teacher.email, "a-new-password")).ok).toBe(true);
   });
 
-  it("needs the current password, and guessing is limited", async () => {
-    const teacher = await newTeacher();
-    const from = client();
-    for (let i = 0; i < SIGN_IN_LIMITS.pair.max; i++) {
-      expect(await changePassword(t.database, teacher.id, "guess", "another-password", from)).toEqual({ ok: false, reason: "wrong" });
+  it("needs the current password, and guessing is locked after 5", async () => {
+    const teacher = await settledTeacher();
+    const from = device();
+    for (let i = 0; i < LOGIN_LIMITS.pair.max; i++) {
+      expect(await changeOwnPassword(db, teacher.id, "guess-guess", "another-password", from)).toEqual({ ok: false, reason: "invalid" });
     }
-    expect(await changePassword(t.database, teacher.id, teacher.password, "another-password", from))
-      .toEqual({ ok: false, reason: "limited" });
+    expect(await changeOwnPassword(db, teacher.id, teacher.password, "another-password", from)).toEqual({ ok: false, reason: "limited" });
   });
 });
 
 describe("teacher accounts", () => {
   it("are created with a login, profile and classes", async () => {
     const teacher = await newTeacher([IDS.class2]);
-    expect(await signIn(teacher.email, teacher.password)).toMatchObject({ ok: true, role: "teacher" });
+    expect(await login(teacher.email, teacher.password)).toMatchObject({ ok: true, user: { role: "teacher" } });
     const visible = await t.as(teacher.id).select("classes");
     expect(visible.map((c) => c.id)).toEqual([IDS.class2]);
   });
@@ -253,24 +328,24 @@ describe("teacher accounts", () => {
     await updateTeacherAccount(t.database, IDS.headmaster, made.id,
       { full_name: "Year Teacher", phone: null, email: moved, twelfth_passed_year: 2012, class_ids: [] });
     expect(await year()).toBe(2012);
-    expect((await signIn(email, made.password)).ok).toBe(false);
-    expect((await signIn(moved, made.password)).ok).toBe(true);
+    expect((await login(email, made.password)).ok).toBe(false);
+    expect((await login(moved, made.password)).ok).toBe(true);
 
     // leaving the year out keeps it; another account's email is refused
     await updateTeacherAccount(t.database, IDS.headmaster, made.id, { full_name: "Year Teacher", phone: null, class_ids: [] });
     expect(await year()).toBe(2012);
     await expect(updateTeacherAccount(t.database, IDS.headmaster, made.id,
       { full_name: "Year Teacher", phone: null, email: HEAD.email, class_ids: [] })).rejects.toThrow(/duplicate key/);
-    expect((await signIn(moved, made.password)).ok).toBe(true);
+    expect((await login(moved, made.password)).ok).toBe(true);
   });
 
-  it("a reset replaces the password and ends every session", async () => {
-    const teacher = await newTeacher();
-    const token = await tokenFor(teacher.email, teacher.password);
+  it("a reset replaces the password and ends every sign-in", async () => {
+    const teacher = await settledTeacher();
+    const claims = await claimsFor(teacher.email, teacher.password);
     const fresh = await resetTeacherAccountPassword(t.database, IDS.headmaster, teacher.id);
-    expect(await resolveSession(t.database, token)).toBeNull();
-    expect((await signIn(teacher.email, teacher.password)).ok).toBe(false);
-    expect((await signIn(teacher.email, fresh)).ok).toBe(true);
+    expect(await user(claims)).toBeNull();
+    expect((await login(teacher.email, teacher.password)).ok).toBe(false);
+    expect((await login(teacher.email, fresh)).ok).toBe(true);
   });
 
   it("teachers can't manage accounts or list emails", async () => {
@@ -294,34 +369,36 @@ describe("teacher accounts", () => {
   });
 
   it("login tables are unreachable through the data client", async () => {
-    for (const table of ["users", "sessions", "sign_in_attempts"]) {
+    for (const table of ["users", "sessions", "sign_in_attempts", "login_attempts"]) {
       await expect(t.as(IDS.headmaster).select(table as TableName)).rejects.toThrow(/unknown table/);
     }
   });
 });
 
 // last: changes the headmaster
-describe("headmaster command", () => {
-  it("refuses a second headmaster", async () => {
-    await expect(createFirstHeadmaster(t.database,
+describe("headmaster seed (npm run super-admin)", () => {
+  it("refuses a second super admin", async () => {
+    await expect(createFirstHeadmaster(db,
       { email: "two@test.invalid", full_name: "Second", password: "second-headmaster" })).rejects.toThrow(/already exists/);
   });
 
-  it("resets only a headmaster, and signs them out", async () => {
+  it("resets only a super admin, signs them out, and needs no forced change", async () => {
     const teacher = await newTeacher();
-    await expect(resetHeadmasterPassword(t.database, teacher.email, "not-for-teachers")).rejects.toThrow(/not a super admin/);
-    const token = await tokenFor(HEAD.email, HEAD.password);
-    await resetHeadmasterPassword(t.database, HEAD.email, "replacement-password");
-    expect(await resolveSession(t.database, token)).toBeNull();
-    expect((await signIn(HEAD.email, "replacement-password")).ok).toBe(true);
+    await expect(resetHeadmasterPassword(db, teacher.email, "not-for-teachers")).rejects.toThrow(/not a super admin/);
+    const claims = await claimsFor(HEAD.email, HEAD.password);
+    await resetHeadmasterPassword(db, HEAD.email, "replacement-password");
+    expect(await user(claims)).toBeNull();
+    expect(await login(HEAD.email, "replacement-password")).toMatchObject({ ok: true, user: { mustChangePassword: false } });
   });
 
   it("creates exactly one, even when run twice at once", async () => {
     await t.database.query("delete from profiles where role = 'headmaster'");
-    const run = (n: number) => createFirstHeadmaster(t.database,
+    const run = (n: number) => createFirstHeadmaster(db,
       { email: `first${n}@test.invalid`, full_name: "First", password: "first-headmaster-pass" });
     const out = await Promise.allSettled([run(1), run(2)]);
     expect(out.filter((r) => r.status === "fulfilled")).toHaveLength(1);
     expect(await t.database.query("select id from profiles where role = 'headmaster'")).toHaveLength(1);
+    const [made] = await t.database.query<{ email: string }>("select u.email from users u join profiles p on p.id = u.id where p.role = 'headmaster'");
+    expect((await login(made.email, "first-headmaster-pass")).ok).toBe(true);
   });
 });

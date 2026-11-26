@@ -38,6 +38,11 @@ export const RELATIONS = {
   attendance: {
     students: { table: "students", one: "student_id" },
   },
+  toppers: {
+    students: { table: "students", one: "student_id" },
+    classes: { table: "classes", one: "class_id" },
+    exams: { table: "exams", one: "exam_id" },
+  },
   activities: {
     classes: { table: "classes", one: "class_id" },
     students: { table: "students", one: "student_id" },

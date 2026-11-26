@@ -2,10 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { assertRole } from "@/lib/auth";
-import {
-  createTeacherAccount, resetTeacherAccountPassword, setTeacherAccountActive, updateTeacherAccount,
-} from "@/lib/authn/accounts";
-import { getDatabase } from "@/lib/db";
+import * as accounts from "@/lib/repo/accounts";
 import { createTeacherSchema, teacherIdSchema, updateTeacherSchema } from "@/lib/validation/staff";
 import { toActionError, type ActionResult } from "@/lib/action-result";
 
@@ -18,13 +15,10 @@ export async function createTeacher(input: unknown): Promise<ActionResult<{ emai
   try {
     const user = await assertRole("headmaster");
     const details = createTeacherSchema.parse(input);
-    const { password } = await createTeacherAccount(getDatabase(), user.id, details);
+    const password = await accounts.createTeacher(user, details);
     revalidateTeachers();
     return { ok: true, data: { email: details.email, password }, message: "Teacher account created." };
   } catch (e) {
-    if ((e as { code?: string } | null)?.code === "23505") {
-      return { ok: false, error: "A user with this email already exists." };
-    }
     return toActionError(e);
   }
 }
@@ -32,14 +26,10 @@ export async function createTeacher(input: unknown): Promise<ActionResult<{ emai
 export async function updateTeacher(input: unknown): Promise<ActionResult> {
   try {
     const user = await assertRole("headmaster");
-    const { id, ...details } = updateTeacherSchema.parse(input);
-    await updateTeacherAccount(getDatabase(), user.id, id, details);
+    await accounts.updateTeacher(user, updateTeacherSchema.parse(input));
     revalidateTeachers();
     return { ok: true, message: "Teacher updated." };
   } catch (e) {
-    if ((e as { code?: string } | null)?.code === "23505") {
-      return { ok: false, error: "A user with this email already exists.", fieldErrors: { email: ["A user with this email already exists."] } };
-    }
     return toActionError(e);
   }
 }
@@ -49,7 +39,7 @@ export async function setTeacherActive(input: unknown, active: boolean): Promise
     const user = await assertRole("headmaster");
     const { id } = teacherIdSchema.parse(input);
     const on = active === true; // an action argument can be anything
-    await setTeacherAccountActive(getDatabase(), user.id, id, on);
+    await accounts.setTeacherActive(user, id, on);
     revalidateTeachers();
     return { ok: true, message: on ? "Teacher re-activated." : "Teacher deactivated." };
   } catch (e) {
@@ -57,12 +47,11 @@ export async function setTeacherActive(input: unknown, active: boolean): Promise
   }
 }
 
-/** Sets a new temporary password and returns it once, for the headmaster to share. */
+/** Sets a new temporary password and returns it once, for the admin to share. */
 export async function resetTeacherPassword(input: unknown): Promise<ActionResult<{ password: string }>> {
   try {
     const user = await assertRole("headmaster");
-    const { id } = teacherIdSchema.parse(input);
-    const password = await resetTeacherAccountPassword(getDatabase(), user.id, id);
+    const password = await accounts.resetTeacherPassword(user, teacherIdSchema.parse(input).id);
     return { ok: true, data: { password }, message: "New temporary password set." };
   } catch (e) {
     return toActionError(e);

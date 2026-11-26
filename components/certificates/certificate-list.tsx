@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight, Download, ExternalLink, FileStack, Search } from "lucide-react";
-import { createClient } from "@/lib/db/server";
-import { sanitizeSearch } from "@/lib/data/students";
+import type { CurrentUser } from "@/lib/auth";
+import { listCertificates } from "@/lib/repo/certificates";
+import { sanitizeSearch } from "@/lib/repo/students";
 import { CERT_LABELS, CERTIFICATE_TYPES } from "@/lib/certificates";
 import { formatDate } from "@/lib/dates";
 import { toQuery } from "@/lib/validation/reports";
@@ -17,24 +18,16 @@ type SP = Record<string, string | string[] | undefined>;
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) ?? "";
 
 /** Certificates visible to the caller (RLS), newest first, with filters in the URL. */
-export async function CertificateList({ sp, classes, canRevoke, base }: {
-  sp: SP; classes: { id: string; label: string }[]; canRevoke: boolean; base: string;
+export async function CertificateList({ user, sp, classes, canRevoke, base }: {
+  user: CurrentUser; sp: SP; classes: { id: string; label: string }[]; canRevoke: boolean; base: string;
 }) {
   const classId = classes.some((c) => c.id === one(sp.class)) ? one(sp.class) : "";
   const type = (CERTIFICATE_TYPES as string[]).includes(one(sp.type)) ? (one(sp.type) as CertificateType) : "";
   const q = sanitizeSearch(one(sp.q));
   const page = Math.max(1, Math.min(1000, Number(one(sp.page)) || 1));
 
-  const dbc = await createClient();
-  let query = dbc.from("certificates")
-    .select("id, certificate_no, type, title, student_name, class_name, year_name, issued_on, revoked", { count: "exact" })
-    .order("created_at", { ascending: false });
-  if (classId) query = query.eq("class_id", classId);
-  if (type) query = query.eq("type", type);
-  if (q) query = query.or([["student_name", "ilike", `%${q}%`], ["certificate_no", "ilike", `%${q}%`]]);
-  const { data, count } = await query.range((page - 1) * PAGE, page * PAGE - 1);
-  const rows = data ?? [];
-  const pages = Math.max(1, Math.ceil((count ?? 0) / PAGE));
+  const { rows, count } = await listCertificates(user, { classId, type, q, page, pageSize: PAGE });
+  const pages = Math.max(1, Math.ceil(count / PAGE));
   const link = (p: number) => `${base}?${toQuery({ class: classId, type, q, page: p })}`;
 
   return (

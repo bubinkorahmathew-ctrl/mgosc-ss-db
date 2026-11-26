@@ -1,5 +1,7 @@
 import "server-only";
-import mysql, { type Pool, type PoolConnection } from "mysql2/promise";
+import { connect, type Decoders } from "@tidbcloud/serverless";
+// only the statement formatter: the same escaping this layer has always used (no connection)
+import { format } from "mysql2";
 import { translateError } from "./errors";
 import type { Row } from "./values";
 
@@ -12,57 +14,63 @@ export interface Database extends Executor {
   transaction<T>(fn: (tx: Executor) => Promise<T>): Promise<T>;
 }
 
-export type TiDbConfig = { host: string; port: number; user: string; password: string; database: string };
+/** Something that runs one statement: the serverless driver's connection or open transaction. */
+type Runner = { execute(sql: string): Promise<unknown> };
 
 const SYSTEM_SCHEMAS = ["sys", "mysql", "information_schema", "performance_schema", "metrics_schema"];
 
-export function configFromEnv(env: Record<string, string | undefined> = process.env): TiDbConfig {
-  const need = (name: string) => {
-    const value = env[name];
-    if (!value) throw new Error(`Missing environment variable ${name}. See .env.example.`);
-    return value;
-  };
-  return {
-    host: need("TIDB_HOST"),
-    port: Number(env.TIDB_PORT || 4000),
-    user: need("TIDB_USER"),
-    password: need("TIDB_PASSWORD"),
-    database: need("TIDB_DATABASE"),
-  };
+const utcDate = (value: string) => new Date(`${value.replace(" ", "T")}Z`);
+const bytes = (hex: string) => Buffer.from(hex, "hex");
+
+/**
+ * Values come back the way the rules and the app expect (as mysql2 gave them): DATETIME as a
+ * Date (stored in UTC), DATE as YYYY-MM-DD, DECIMAL and BIGINT as numbers, blobs as Buffers.
+ */
+const DECODERS: Decoders = {
+  DATETIME: utcDate,
+  TIMESTAMP: utcDate,
+  DECIMAL: Number,
+  BIGINT: Number,
+  "UNSIGNED BIGINT": Number,
+  BLOB: bytes,
+  TINYBLOB: bytes,
+  MEDIUMBLOB: bytes,
+  LONGBLOB: bytes,
+};
+
+/** The serverless driver reports "Error 1062 (23000): ..."; the rules match on the number. */
+export function withErrno(e: unknown): unknown {
+  const message = (e as { message?: unknown } | null)?.message;
+  const m = typeof message === "string" ? /Error (\d{4,5}) \(/.exec(message) : null;
+  if (m && e && typeof e === "object") Object.assign(e, { errno: Number(m[1]) });
+  return e;
 }
 
-export function createPool(config: TiDbConfig): Pool {
-  if (SYSTEM_SCHEMAS.includes(config.database.toLowerCase())) {
-    throw new Error("TIDB_DATABASE is a system schema; use the application's own database.");
-  }
-  const pool = mysql.createPool({
-    ...config,
-    ssl: { minVersion: "TLSv1.2", rejectUnauthorized: true },
-    connectTimeout: 15_000,
-    connectionLimit: 10,
-    maxIdle: 3,
-    idleTimeout: 60_000, // TiDB Cloud drops idle connections after a few minutes
-    enableKeepAlive: true,
-    charset: "utf8mb4",
-    timezone: "Z",
-    dateStrings: ["DATE"],
-    decimalNumbers: true,
-    stringifyObjects: true, // never expand an object into `key = value` SQL
-    multipleStatements: false,
-    disableEval: true,
-  });
-  // queued on the new connection before any caller's statement
-  pool.on("connection", (connection) => {
-    void connection.query("set time_zone = '+00:00'");
-  });
-  return pool;
-}
+/** The serverless driver with the decoders above. Tests use this too, so values match the app's. */
+export const connectTiDb = (url: string) => connect({ url, decoders: DECODERS });
 
-export function executor(connection: Pool | PoolConnection | mysql.Connection): Executor {
-  return {
-    async query<T = Row>(sql: string, params: unknown[] = []) {
-      const [result] = await connection.query(sql, params);
+/**
+ * Statements are formatted here (arrays become lists, nested arrays rows, dates UTC).
+ * `serial`: one statement at a time, in call order. Needed inside a transaction: the driver
+ * refuses a second statement on a transaction while one is running (mysql2 queued them itself).
+ */
+export function executor(runner: Runner, { serial = false } = {}): Executor {
+  let queue: Promise<unknown> = Promise.resolve();
+  const run = async <T>(sql: string, params: unknown[]) => {
+    const statement = params.length ? format(sql, params as Parameters<typeof format>[1], true, "Z") : sql;
+    try {
+      const result = await runner.execute(statement);
       return (Array.isArray(result) ? result : []) as T[];
+    } catch (e) {
+      throw withErrno(e);
+    }
+  };
+  return {
+    query<T = Row>(sql: string, params: unknown[] = []) {
+      if (!serial) return run<T>(sql, params);
+      const next = queue.then(() => run<T>(sql, params));
+      queue = next.catch(() => undefined); // a failed statement doesn't block the ones after it
+      return next;
     },
   };
 }
@@ -71,8 +79,14 @@ export function executor(connection: Pool | PoolConnection | mysql.Connection): 
 const RETRYABLE = new Set([1213, 9007, 8028]);
 const MAX_ATTEMPTS = 3;
 
-export function createDatabase(pool: Pool): Database {
-  const direct = executor(pool);
+/** The TiDB serverless (HTTPS) driver. `url` is DATABASE_URL: mysql://user:pass@host:4000/database */
+export function createDatabase(url: string): Database {
+  const database = decodeURIComponent(new URL(url).pathname.slice(1));
+  if (!database || SYSTEM_SCHEMAS.includes(database.toLowerCase())) {
+    throw new Error("DATABASE_URL must name the application's own database, not a system schema.");
+  }
+  const client = connectTiDb(url);
+  const direct = executor(client);
   return {
     async query<T = Row>(sql: string, params?: unknown[]) {
       try {
@@ -83,23 +97,16 @@ export function createDatabase(pool: Pool): Database {
     },
     async transaction(fn) {
       for (let attempt = 1; ; attempt++) {
-        const connection = await pool.getConnection();
-        let reusable = true;
+        // TiDB Cloud runs pessimistic transactions: SELECT ... FOR UPDATE locks at once, as the rules need
+        const tx = await client.begin();
         try {
-          // Pessimistic is required: the rules rely on SELECT ... FOR UPDATE taking locks immediately.
-          await connection.query("begin pessimistic");
-          const out = await fn(executor(connection));
-          await connection.query("commit");
+          const out = await fn(executor(tx, { serial: true }));
+          await tx.commit();
           return out;
         } catch (e) {
-          await connection.query("rollback").catch(() => {
-            reusable = false;
-          });
-          if (attempt < MAX_ATTEMPTS && RETRYABLE.has((e as { errno?: number } | null)?.errno ?? 0)) continue;
+          await tx.rollback().catch(() => {});
+          if (attempt < MAX_ATTEMPTS && RETRYABLE.has((withErrno(e) as { errno?: number } | null)?.errno ?? 0)) continue;
           throw translateError(e);
-        } finally {
-          if (reusable) connection.release();
-          else connection.destroy();
         }
       }
     },

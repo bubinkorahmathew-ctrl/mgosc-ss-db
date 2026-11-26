@@ -1,9 +1,6 @@
 import type { Metadata } from "next";
 import { assertRole } from "@/lib/auth";
-import { listTeacherEmails } from "@/lib/authn/accounts";
-import { getDatabase } from "@/lib/db";
-import { createDb } from "@/lib/db/client";
-import { getClassOptions } from "@/lib/data/classes";
+import { teachersPage } from "@/lib/repo/accounts";
 import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -13,18 +10,7 @@ export const metadata: Metadata = { title: "Teachers" };
 
 export default async function TeachersPage() {
   const user = await assertRole("headmaster");
-  const database = getDatabase();
-  const db = createDb(database, user.id);
-  const [teachers, assignments, classes, emails] = await Promise.all([
-    db.select("profiles", {
-      where: [["role", "eq", "teacher"]],
-      order: [{ column: "active", ascending: false }, { column: "full_name" }],
-    }),
-    db.select("class_teachers"),
-    getClassOptions({ currentOnly: true }),
-    // emails live in the users table; only the headmaster can list them
-    listTeacherEmails(database, user.id),
-  ]);
+  const { teachers, assignments, classes, emails } = await teachersPage(user);
   const classOptions = classes.map((c) => ({ id: c.id, label: c.label }));
 
   return (

@@ -2,7 +2,7 @@ import "server-only";
 import { Document, Image, Page, StyleSheet, Text, View, renderToBuffer } from "@react-pdf/renderer";
 import { PDF_FONT, PDF_SERIF, registerPdfFonts } from "./fonts";
 import { BANNER_RATIO, type PdfImage } from "./images";
-import type { ExamResults } from "@/lib/data/results";
+import type { ExamResults } from "@/lib/repo/results";
 import { formatAge, formatDate } from "@/lib/dates";
 import { formatPercent, ordinal } from "@/lib/results";
 
@@ -25,6 +25,7 @@ const s = StyleSheet.create({
   cSubject: { flex: 3 },
   cNum: { flex: 1, textAlign: "right" },
   bold: { fontWeight: 700 },
+  fail: { color: "#b91c1c", fontWeight: 700 },
   summary: { marginTop: 14, flexDirection: "row", gap: 8 },
   box: { flex: 1, borderWidth: 1, borderColor: "#d1d5db", borderRadius: 4, padding: 8, alignItems: "center" },
   big: { fontSize: 14, fontWeight: 700, marginTop: 2 },
@@ -88,25 +89,37 @@ export async function renderReportCards(data: ExamResults, studentIds: string[] 
               <View style={[s.row, s.headRow]}>
                 <Text style={[s.cell, s.cSubject, s.bold]}>Subject</Text>
                 <Text style={[s.cell, s.cNum, s.bold]}>Maximum</Text>
+                <Text style={[s.cell, s.cNum, s.bold]}>Pass mark</Text>
                 <Text style={[s.cell, s.cNum, s.bold]}>Obtained</Text>
+                <Text style={[s.cell, s.cNum, s.bold]}>Grade</Text>
               </View>
-              {data.subjects.map((sub) => (
-                <View key={sub.id} style={s.row}>
-                  <Text style={[s.cell, s.cSubject]}>{sub.name}</Text>
-                  <Text style={[s.cell, s.cNum]}>{sub.max}</Text>
-                  <Text style={[s.cell, s.cNum]}>{r.examAbsent ? "AB" : r.marks[sub.id] ?? "-"}</Text>
-                </View>
-              ))}
+              {data.subjects.map((sub) => {
+                const failed = r.failedSubjects.includes(sub.id);
+                return (
+                  <View key={sub.id} style={s.row}>
+                    <Text style={[s.cell, s.cSubject]}>{sub.name}</Text>
+                    <Text style={[s.cell, s.cNum]}>{sub.max}</Text>
+                    <Text style={[s.cell, s.cNum]}>{Math.round(sub.max * (sub.passPercent ?? 40)) / 100}</Text>
+                    <Text style={[s.cell, s.cNum, failed ? s.fail : {}]}>{r.examAbsent ? "AB" : r.marks[sub.id] ?? "-"}</Text>
+                    <Text style={[s.cell, s.cNum]}>{r.examAbsent ? "-" : r.subjectGrades[sub.id] ?? "-"}</Text>
+                  </View>
+                );
+              })}
               <View style={[s.row, s.headRow]}>
                 <Text style={[s.cell, s.cSubject, s.bold]}>Total</Text>
                 <Text style={[s.cell, s.cNum, s.bold]}>{r.subjectsEntered ? r.max : "-"}</Text>
+                <Text style={[s.cell, s.cNum]}> </Text>
                 <Text style={[s.cell, s.cNum, s.bold]}>{r.subjectsEntered ? r.total : "-"}</Text>
+                <Text style={[s.cell, s.cNum, s.bold]}>{r.grade ?? "-"}</Text>
               </View>
             </View>
 
             <View style={s.summary}>
               <View style={s.box}><Text style={s.label}>Percentage</Text>
                 <Text style={s.big}>{r.examAbsent ? "Absent" : formatPercent(r.percentage)}</Text></View>
+              <View style={s.box}><Text style={s.label}>Grade</Text><Text style={s.big}>{r.examAbsent ? "-" : r.grade ?? "-"}</Text></View>
+              <View style={s.box}><Text style={s.label}>Result</Text>
+                <Text style={[s.big, r.result === "Fail" ? s.fail : {}]}>{r.result ?? "Pending"}</Text></View>
               <View style={s.box}><Text style={s.label}>Rank</Text>
                 <Text style={s.big}>{r.rank ? `${ordinal(r.rank)} of ${ranked}` : "-"}</Text></View>
               <View style={s.box}><Text style={s.label}>Attendance ({data.yearName})</Text>

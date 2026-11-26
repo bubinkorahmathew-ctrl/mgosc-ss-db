@@ -1,12 +1,19 @@
 import Link from "next/link";
-import { FileSpreadsheet, Search } from "lucide-react";
+import type { CurrentUser } from "@/lib/auth";
+import { FileSpreadsheet, FileText, Search } from "lucide-react";
 import { SCHOOL_CLASSES } from "@/lib/config";
 import { formatDate } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { percent } from "@/lib/format";
-import { activityReport, attendanceReport, defaultRange, examAttendanceReport, studentReport } from "@/lib/data/reports";
-import { getClassExams } from "@/lib/data/results";
-import { getPrayerUnits } from "@/lib/data/students";
+import {
+  activityReport, attendanceReport, defaultRange, examAttendanceReport, examNames, gradeDistribution, studentReport,
+} from "@/lib/repo/reports";
+import { getAnnualResults, getClassExams } from "@/lib/repo/results";
+import { getAcademicYears } from "@/lib/repo/classes";
+import { listConfirmedToppers } from "@/lib/repo/toppers";
+import { formatPercent, ordinal } from "@/lib/results";
+import { ResultBadge } from "@/components/results/results-view";
+import { getPrayerUnits } from "@/lib/repo/students";
 import { parseRange, parseStudentReport, toQuery } from "@/lib/validation/reports";
 import { ACTIVITY_LABELS } from "@/lib/validation/teacher";
 import { Button } from "@/components/ui/button";
@@ -36,14 +43,22 @@ export function ReportTabs({ base, tab, tabs, keep, label = "Reports" }: {
   );
 }
 
-function FilterForm({ tab, children, exportHref }: { tab: string; children: React.ReactNode; exportHref?: string }) {
+/** The filters of one report, kept in the URL, with Excel and PDF of exactly what is shown. */
+function FilterForm({ tab, children, exportHref, keep }: {
+  tab: string; children: React.ReactNode; exportHref?: string; keep?: Record<string, string | undefined>;
+}) {
   return (
     <form method="get" className="mb-4 rounded-xl border bg-muted/30 p-4">
       <input type="hidden" name="tab" value={tab} />
+      {Object.entries(keep ?? {}).map(([k, v]) => v && <input key={k} type="hidden" name={k} value={v} />)}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">{children}</div>
       <div className="mt-3 flex flex-wrap gap-2">
         <Button type="submit"><Search /> Show</Button>
         {exportHref && <Button variant="outline" render={<a href={exportHref} />} nativeButton={false}><FileSpreadsheet /> Excel</Button>}
+        {exportHref && (
+          <Button variant="outline" render={<a href={`${exportHref}${exportHref.includes("?") ? "&" : "?"}format=pdf`} target="_blank" rel="noopener" />}
+            nativeButton={false}><FileText /> PDF</Button>
+        )}
       </div>
     </form>
   );
@@ -73,10 +88,10 @@ const tooMany = (n: number) => n > SHOW_MAX && (
   <p className="mb-2 text-sm text-muted-foreground">Showing the first {SHOW_MAX} of {n}. The Excel file has all rows.</p>
 );
 
-export async function StudentsReport({ sp, classes, allowed }: { sp: SP; classes: ClassOpt[]; allowed: string[] | "all" }) {
+export async function StudentsReport({ user, sp, classes, allowed }: { user: CurrentUser; sp: SP; classes: ClassOpt[]; allowed: string[] | "all" }) {
   const f = parseStudentReport(sp);
   if (f.class_id && allowed !== "all" && !allowed.includes(f.class_id)) f.class_id = undefined;
-  const [rows, prayerUnits] = await Promise.all([studentReport(f, allowed), getPrayerUnits()]);
+  const [rows, prayerUnits] = await Promise.all([studentReport(user, f, allowed), getPrayerUnits(user)]);
   const q = toQuery({
     class: f.class_id, q: f.q, school_class: f.school_class, gender: f.gender, status: f.status, prayer_unit_id: f.prayer_unit_id,
     age_min: f.age_min, age_max: f.age_max, as_of: f.as_of, dob_from: f.dob_from, dob_to: f.dob_to,
@@ -175,21 +190,28 @@ export async function StudentsReport({ sp, classes, allowed }: { sp: SP; classes
   );
 }
 
-export async function AttendanceReport({ sp, classes }: { sp: SP; classes: ClassOpt[] }) {
-  const f = parseRange(sp, await defaultRange());
+export async function AttendanceReport({ user, sp, classes }: { user: CurrentUser; sp: SP; classes: ClassOpt[] }) {
+  const f = parseRange(sp, await defaultRange(user));
   const classId = classes.find((c) => c.id === f.class_id)?.id ?? classes[0]?.id;
   if (!classId) return <EmptyState title="No classes to report on." />;
-  const { rows, sessions } = await attendanceReport(classId, f.from, f.to);
-  const q = toQuery({ class: classId, from: f.from, to: f.to });
+  const { rows, sessions } = await attendanceReport(user, classId, f.from, f.to, f.onlyBelow ? f.below : undefined);
+  const q = toQuery({ class: classId, from: f.from, to: f.to, below: f.below, only_below: f.onlyBelow ? "1" : undefined });
 
   return (
     <>
       <FilterForm tab="attendance" exportHref={`/api/export/attendance?${q}`}>
         <ClassSelect classes={classes} value={classId} />
         <DateFields from={f.from} to={f.to} />
+        <Field id="r-below" label="Below (%)" hint="Shown in red">
+          <Input id="r-below" name="below" inputMode="numeric" defaultValue={f.below} />
+        </Field>
+        <label className="flex min-h-9 items-center gap-2 self-end text-sm">
+          <input type="checkbox" name="only_below" value="1" defaultChecked={f.onlyBelow} className="size-4 accent-[var(--primary)]" />
+          Only students below it
+        </label>
       </FilterForm>
       <p className="mb-2 text-sm font-medium">{sessions} day{sessions === 1 ? "" : "s"} marked between {formatDate(f.from)} and {formatDate(f.to)}</p>
-      {!rows.length ? <EmptyState title="No students in this class." /> : (
+      {!rows.length ? <EmptyState title={f.onlyBelow ? `Nobody is below ${f.below}%.` : "No students in this class."} /> : (
         <div className="overflow-x-auto rounded-xl border">
           <table className="w-full text-sm">
             <thead className="bg-muted/50 text-left">
@@ -208,7 +230,7 @@ export async function AttendanceReport({ sp, classes }: { sp: SP; classes: Class
                   <td className="px-3 py-2 text-right tabular-nums text-emerald-700">{r.present}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-amber-700">{r.late}</td>
                   <td className="px-3 py-2 text-right tabular-nums text-red-700">{r.absent}</td>
-                  <td className={cn("px-3 py-2 text-right font-medium tabular-nums", r.percentage !== null && r.percentage < 75 && "text-red-700")}>
+                  <td className={cn("px-3 py-2 text-right font-medium tabular-nums", r.percentage !== null && r.percentage < f.below && "text-red-700")}>
                     {percent(r.present + r.late, r.days, 0)}
                   </td>
                 </tr>
@@ -217,19 +239,172 @@ export async function AttendanceReport({ sp, classes }: { sp: SP; classes: Class
           </table>
         </div>
       )}
-      <p className="mt-2 text-xs text-muted-foreground">Late counts as attended. Below 75% is shown in red.</p>
+      <p className="mt-2 text-xs text-muted-foreground">Late counts as attended. Below {f.below}% is shown in red.</p>
+    </>
+  );
+}
+
+const list = (v: string | string[] | undefined) => (Array.isArray(v) ? v : v ? v.split(",") : []).filter(Boolean);
+
+/** Several exams of a year combined into one result: weighted average, grade, result, rank. */
+export async function AnnualResultReport({ user, sp, classes }: { user: CurrentUser; sp: SP; classes: ClassOpt[] }) {
+  const asked = typeof sp.class === "string" ? sp.class : undefined;
+  const classId = classes.find((c) => c.id === asked)?.id ?? classes[0]?.id;
+  if (!classId) return <EmptyState title="No classes to report on." />;
+  const exams = await getClassExams(user, classId);
+  const chosen = list(sp.exams).filter((id) => exams.some((e) => e.id === id));
+  const examIds = chosen.length ? chosen : exams.map((e) => e.id);
+  const data = examIds.length ? await getAnnualResults(user, classId, examIds) : null;
+
+  return (
+    <>
+      <FilterForm tab="annual" exportHref={data ? `/api/export/annual?${toQuery({ class: classId, exams: examIds.join(",") })}` : undefined}>
+        <ClassSelect classes={classes} value={classId} />
+        <fieldset className="space-y-1 sm:col-span-2 lg:col-span-3">
+          <legend className="text-sm font-medium">Exams to combine</legend>
+          {!exams.length ? <p className="text-sm text-muted-foreground">No exams for this class.</p> : (
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {exams.map((e) => (
+                <label key={e.id} className="flex min-h-9 items-center gap-2 text-sm">
+                  <input type="checkbox" name="exams" value={e.id} defaultChecked={examIds.includes(e.id)} className="size-4 accent-[var(--primary)]" />
+                  {e.name}{e.weight !== 1 && <span className="text-xs text-muted-foreground">(weight {e.weight})</span>}
+                </label>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">Press Show after changing the class. Weights are set on each exam (Subjects &amp; Exams).</p>
+        </fieldset>
+      </FilterForm>
+      {!data ? <EmptyState title="No exams for this class yet." /> : (
+        <div className="overflow-x-auto rounded-xl border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50 text-left">
+              <tr>
+                <th className="px-3 py-2 font-medium">Rank</th>
+                <th className="px-3 py-2 font-medium">Student</th>
+                {data.exams.map((e) => <th key={e.id} className="px-3 py-2 text-right font-medium">{e.name}{e.weight !== 1 ? ` ×${e.weight}` : ""}</th>)}
+                <th className="px-3 py-2 text-right font-medium">Annual %</th>
+                <th className="px-3 py-2 font-medium">Grade</th>
+                <th className="px-3 py-2 font-medium">Result</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {data.rows.map((r) => (
+                <tr key={r.id}>
+                  <td className="px-3 py-2 font-semibold tabular-nums">{r.rank ? ordinal(r.rank) : "-"}</td>
+                  <td className="px-3 py-2"><div className="font-medium">{r.name}</div><div className="text-xs text-muted-foreground">{r.admissionNo}</div></td>
+                  {data.exams.map((e) => <td key={e.id} className="px-3 py-2 text-right tabular-nums">{r.exams[e.id] === null ? "-" : formatPercent(r.exams[e.id])}</td>)}
+                  <td className="px-3 py-2 text-right font-medium tabular-nums">{formatPercent(r.percentage)}</td>
+                  <td className="px-3 py-2 font-semibold">{r.grade ?? "-"}</td>
+                  <td className="px-3 py-2"><ResultBadge result={r.result} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+      <p className="mt-2 text-xs text-muted-foreground">
+        Annual % is the average of the exam percentages, weighted by each exam&apos;s weight, over the exams the student has
+        marks for. Pass needs a pass in every chosen exam.
+      </p>
+    </>
+  );
+}
+
+/** How many students got each grade, per class, for one exam name. */
+export async function GradeDistributionReport({ user, sp, allowed }: { user: CurrentUser; sp: SP; allowed: string[] | "all" }) {
+  const years = await getAcademicYears(user);
+  const year = years.find((y) => y.id === sp.year) ?? years.find((y) => y.is_current) ?? years[0];
+  if (!year) return <EmptyState title="No academic year yet." />;
+  const names = await examNames(user, year.id);
+  const examName = names.find((n) => n === sp.exam_name) ?? names[0];
+  const data = examName ? await gradeDistribution(user, year.id, examName, allowed) : null;
+
+  return (
+    <>
+      <FilterForm tab="grades" exportHref={examName ? `/api/export/grades?${toQuery({ year: year.id, exam_name: examName })}` : undefined}>
+        <Field id="r-year" label="Academic year">
+          <NativeSelect id="r-year" name="year" defaultValue={year.id}>
+            {years.map((y) => <option key={y.id} value={y.id}>{y.name}</option>)}
+          </NativeSelect>
+        </Field>
+        <Field id="r-en" label="Exam" hint="Press Show after changing the year">
+          <NativeSelect id="r-en" name="exam_name" defaultValue={examName ?? ""}>
+            {names.map((n) => <option key={n} value={n}>{n}</option>)}
+          </NativeSelect>
+        </Field>
+      </FilterForm>
+      {!data?.rows.length ? <EmptyState title="No results for this exam yet." /> : (
+        <div className="overflow-x-auto rounded-xl border">
+          <table className="w-full text-sm">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="px-3 py-2 text-left font-medium">Class</th>
+                {data.grades.map((g) => <th key={g} className="px-3 py-2 text-right font-medium">{g}</th>)}
+                <th className="px-3 py-2 text-right font-medium">Absent</th>
+                <th className="px-3 py-2 text-right font-medium">Not graded</th>
+                <th className="px-3 py-2 text-right font-medium">Pass</th>
+                <th className="px-3 py-2 text-right font-medium">Fail</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y">
+              {data.rows.map((r) => (
+                <tr key={r.examId}>
+                  <td className="px-3 py-2 font-medium">{r.class}</td>
+                  {data.grades.map((g) => <td key={g} className="px-3 py-2 text-right tabular-nums">{r.counts[g] || <span className="text-muted-foreground">0</span>}</td>)}
+                  <td className="px-3 py-2 text-right tabular-nums">{r.absent}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-muted-foreground">{r.pending}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-emerald-700">{r.pass}</td>
+                  <td className="px-3 py-2 text-right tabular-nums text-red-700">{r.fail}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
+
+/** Toppers the headmaster confirmed. */
+export async function ToppersReport({ user, sp, classes }: { user: CurrentUser; sp: SP; classes: ClassOpt[] }) {
+  const asked = typeof sp.class === "string" ? sp.class : "";
+  const classId = classes.some((c) => c.id === asked) ? asked : undefined;
+  const rows = await listConfirmedToppers(user, { classId, limit: 500 });
+  const visible = rows.filter((r) => classes.some((c) => c.id === r.classId));
+  return (
+    <>
+      <FilterForm tab="toppers" exportHref={`/api/export/toppers?${toQuery({ class: classId })}`}>
+        <ClassSelect classes={classes} value={classId} allLabel="All classes" />
+      </FilterForm>
+      {!visible.length ? <EmptyState title="No toppers confirmed yet.">An admin confirms toppers on the Toppers page.</EmptyState> : (
+        <ul className="divide-y rounded-xl border text-sm">
+          {visible.map((t) => (
+            <li key={t.id} className="flex flex-wrap items-center justify-between gap-2 px-4 py-3">
+              <div>
+                <p className="font-medium">{t.student} <span className="font-normal text-muted-foreground">· {t.className}</span></p>
+                <p className="text-muted-foreground">
+                  {t.type === "marks" ? "Class topper" : "Attendance topper"} · {t.what} · {formatDate(t.periodStart)}
+                  {t.periodEnd !== t.periodStart ? ` to ${formatDate(t.periodEnd)}` : ""}
+                </p>
+              </div>
+              <span className="font-semibold tabular-nums">{t.value}%</span>
+            </li>
+          ))}
+        </ul>
+      )}
     </>
   );
 }
 
 /** Per exam: how many sat it, and who was absent. */
-export async function ExamAttendanceReportView({ sp, classes }: { sp: SP; classes: ClassOpt[] }) {
+export async function ExamAttendanceReportView({ user, sp, classes }: { user: CurrentUser; sp: SP; classes: ClassOpt[] }) {
   const asked = typeof sp.class === "string" ? sp.class : undefined;
   const classId = classes.find((c) => c.id === asked)?.id ?? classes[0]?.id;
   if (!classId) return <EmptyState title="No classes to report on." />;
-  const exams = await getClassExams(classId);
+  const exams = await getClassExams(user, classId);
   const exam = exams.find((e) => e.id === sp.exam) ?? exams[0];
-  const data = exam ? await examAttendanceReport(exam.id) : null;
+  const data = exam ? await examAttendanceReport(user, exam.id) : null;
 
   return (
     <>
@@ -275,10 +450,10 @@ export async function ExamAttendanceReportView({ sp, classes }: { sp: SP; classe
   );
 }
 
-export async function ActivitiesReport({ sp, classes, allowed }: { sp: SP; classes: ClassOpt[]; allowed: string[] | "all" }) {
-  const f = parseRange(sp, await defaultRange());
+export async function ActivitiesReport({ user, sp, classes, allowed }: { user: CurrentUser; sp: SP; classes: ClassOpt[]; allowed: string[] | "all" }) {
+  const f = parseRange(sp, await defaultRange(user));
   if (f.class_id && !classes.some((c) => c.id === f.class_id)) f.class_id = undefined;
-  const rows = await activityReport(f, allowed);
+  const rows = await activityReport(user, f, allowed);
   const q = toQuery({ class: f.class_id, from: f.from, to: f.to, type: f.type });
 
   return (

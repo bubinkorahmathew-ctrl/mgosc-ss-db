@@ -12,10 +12,10 @@ export async function currentNumberYear(db: Executor, now: Date): Promise<number
 /** Reserve `count` numbers and return the first. A rolled-back transaction gives them back. */
 export async function reserveNumbers(tx: Executor, kind: CounterKind, year: number, count: number): Promise<number> {
   await tx.query(
-    "insert into number_counters (kind, `year`, `last_value`) values (?, ?, ?) on duplicate key update `last_value` = `last_value` + ?",
+    "insert into number_counters (name, `year`, `last_value`) values (?, ?, ?) on duplicate key update `last_value` = `last_value` + ?",
     [kind, year, count, count]);
   const [row] = await tx.query<{ v: number }>(
-    "select `last_value` as v from number_counters where kind = ? and `year` = ? for update", [kind, year]);
+    "select `last_value` as v from number_counters where name = ? and `year` = ? for update", [kind, year]);
   return Number(row.v) - count + 1;
 }
 

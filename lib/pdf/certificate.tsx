@@ -7,9 +7,10 @@ import {
   CertificateBundle, CertificateDocument, registerCertificateFonts, type CertificateProps, type Signatory,
 } from "@/components/certificate/Certificate";
 import { certificateAccent, certificateSubtitle, issueDateText, type DesignType } from "@/lib/certificate-design";
-import { certificateDetails, type PdfCertificate } from "@/lib/data/certificates";
-import { getSettings } from "@/lib/data/settings";
+import { certificateDetails, type PdfCertificate } from "@/lib/repo/certificates";
+import { getSettings } from "@/lib/repo/settings";
 import { publicEnv } from "@/lib/env";
+import type { CurrentUser } from "@/lib/auth";
 import { loadBrandingImage, type PdfImage } from "./images";
 
 /** Fonts and banner ship with the app (next.config outputFileTracingIncludes). */
@@ -20,7 +21,7 @@ const FONT_DIR = path.join(process.cwd(), "public", "fonts", "certificate");
  * reads "D:\..." on Windows as a URL and silently drops the image.
  */
 let headerImage: Promise<string> | undefined;
-const loadHeaderImage = () => (headerImage ??= fs.readFile(path.join(process.cwd(), "public", "images", "church-header.jpg"))
+export const loadHeaderImage = () => (headerImage ??= fs.readFile(path.join(process.cwd(), "public", "images", "church-header.jpg"))
   .then((b) => `data:image/jpeg;base64,${b.toString("base64")}`)
   .catch((e) => { headerImage = undefined; throw e; }));
 
@@ -35,10 +36,10 @@ const dataUrl = (img: PdfImage | null) =>
   img ? `data:image/${img.format === "png" ? "png" : "jpeg"};base64,${img.data.toString("base64")}` : undefined;
 
 /** Names and signature images from Settings. No image: the line stays blank for signing by hand. */
-export async function loadSignatories(): Promise<{ vicar: Signatory; headmaster: Signatory }> {
-  const s = await getSettings();
+export async function loadSignatories(user: CurrentUser): Promise<{ vicar: Signatory; headmaster: Signatory }> {
+  const s = await getSettings(user);
   const [vicar, headmaster] = await Promise.all([
-    loadBrandingImage(s.vicar_signature_url, "vicar"), loadBrandingImage(s.signature_url, "headmaster"),
+    loadBrandingImage(user, s.vicar_signature_url, "vicar"), loadBrandingImage(user, s.signature_url, "headmaster"),
   ]);
   return {
     vicar: { name: s.vicar_name ?? "", signatureUrl: dataUrl(vicar) },
@@ -51,7 +52,7 @@ export async function loadSignatories(): Promise<{ vicar: Signatory; headmaster:
  * nothing on an issued certificate is recomputed except the facts row (rank, percentage,
  * attendance). `preview`: not issued yet, so there is no number to verify and no QR code.
  */
-export async function renderCertificates(certs: PdfCertificate[], opts: {
+export async function renderCertificates(user: CurrentUser, certs: PdfCertificate[], opts: {
   preview?: boolean;
   /** given by tests; otherwise read from Settings */
   signatories?: { vicar: Signatory; headmaster: Signatory };
@@ -60,7 +61,7 @@ export async function renderCertificates(certs: PdfCertificate[], opts: {
 } = {}): Promise<Buffer> {
   registerCertificateFonts(FONT_DIR);
   const [signatories, details, header] = await Promise.all([
-    opts.signatories ?? loadSignatories(), opts.details ?? certificateDetails(certs), loadHeaderImage(),
+    opts.signatories ?? loadSignatories(user), opts.details ?? certificateDetails(user, certs), loadHeaderImage(),
   ]);
 
   const items: CertificateProps[] = await Promise.all(certs.map(async (c) => {

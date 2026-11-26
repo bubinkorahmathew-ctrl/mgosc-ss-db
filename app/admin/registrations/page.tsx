@@ -1,7 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { ChevronRight } from "lucide-react";
-import { createClient } from "@/lib/db/server";
+import { requireRole } from "@/lib/auth";
+import { listRegistrations } from "@/lib/repo/registrations";
 import { formatDate } from "@/lib/dates";
 import { cn } from "@/lib/utils";
 import { EmptyState, PageHeader } from "@/components/page-header";
@@ -13,15 +14,10 @@ const TABS = ["pending", "approved", "rejected"] as const;
 type Tab = (typeof TABS)[number];
 
 export default async function RegistrationsPage({ searchParams }: PageProps<"/admin/registrations">) {
+  const user = await requireRole("headmaster");
   const sp = await searchParams;
   const status: Tab = TABS.includes(sp.status as Tab) ? (sp.status as Tab) : "pending";
-  const dbc = await createClient();
-  const { data: rows } = await dbc
-    .from("registrations")
-    .select("id, full_name, full_name_ml, dob, school_class, guardian_phone, status, submitted_at")
-    .eq("status", status)
-    .order("submitted_at", { ascending: status === "pending" })
-    .limit(200);
+  const rows = await listRegistrations(user, status);
 
   return (
     <>
@@ -36,7 +32,7 @@ export default async function RegistrationsPage({ searchParams }: PageProps<"/ad
         ))}
       </nav>
 
-      {!rows?.length ? (
+      {!rows.length ? (
         <EmptyState title={`No ${status} registrations.`}>
           {status === "pending" && "New registrations from the public form will appear here."}
         </EmptyState>

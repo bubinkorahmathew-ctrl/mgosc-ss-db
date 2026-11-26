@@ -1,9 +1,11 @@
-import { Download } from "lucide-react";
+import { Crown, Download } from "lucide-react";
+import { formatPercent, ordinal } from "@/lib/results";
+import { ResultBadge } from "@/components/results/results-view";
 import { FATHER_NAME_PLACEHOLDER, NOT_ASSIGNED_PRAYER_UNIT } from "@/lib/config";
 import { formatAge, formatDate, todayISO } from "@/lib/dates";
 import { StudentAttendanceCalendar } from "@/components/attendance/student-attendance-calendar";
 import { classLabel, percent } from "@/lib/format";
-import type { StudentProfile } from "@/lib/data/student-profile";
+import type { StudentProfile } from "@/lib/repo/student-profile";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { EmptyState } from "@/components/page-header";
@@ -46,6 +48,16 @@ export function StudentProfileView({ profile }: { profile: StudentProfile }) {
 
   return (
     <div className="space-y-4">
+      {profile.toppers.length > 0 && (
+        <ul className="flex flex-wrap gap-2" aria-label="Topper awards">
+          {profile.toppers.map((t) => (
+            <li key={t.id} className="flex items-center gap-1.5 rounded-full bg-amber-100 px-3 py-1 text-sm text-amber-950">
+              <Crown className="size-4" aria-hidden />
+              {t.type === "marks" ? "Class topper" : "Attendance topper"} · {t.what} · {t.value}%
+            </li>
+          ))}
+        </ul>
+      )}
       <div className="grid grid-cols-3 gap-3">
         <Card size="sm"><CardContent>
           <p className="text-xs text-muted-foreground">Attendance</p>
@@ -86,22 +98,34 @@ export function StudentProfileView({ profile }: { profile: StudentProfile }) {
             <Card key={e.id}>
               <CardHeader>
                 <CardTitle className="flex flex-wrap items-baseline justify-between gap-2">
-                  <span>{e.name}</span>
-                  <span className="text-sm font-normal text-muted-foreground">
-                    {e.exam_date ? formatDate(e.exam_date) + " · " : ""}{e.total}/{e.max} ({percent(e.total, e.max)})
+                  <span>{e.name}{e.exam_date && <span className="ml-2 text-sm font-normal text-muted-foreground">{formatDate(e.exam_date)}</span>}</span>
+                  <span className="flex flex-wrap items-center gap-2 text-sm font-normal">
+                    {e.examAbsent ? <span className="font-medium text-red-700">Absent for the exam</span> : (
+                      <>
+                        <span className="tabular-nums">{e.total}/{e.max} ({formatPercent(e.percentage)})</span>
+                        {e.grade && <span className="font-semibold">Grade {e.grade}</span>}
+                        {e.rank && <span>Rank {ordinal(e.rank)} of {e.ranked}</span>}
+                      </>
+                    )}
+                    <ResultBadge result={e.result} />
                   </span>
                 </CardTitle>
               </CardHeader>
-              <CardContent>
-                <ul className="divide-y text-sm">
-                  {e.subjects.map((x) => (
-                    <li key={x.name} className="flex justify-between py-2">
-                      <span>{x.name}{x.remarks && <span className="text-muted-foreground"> · {x.remarks}</span>}</span>
-                      <span className="font-medium">{x.obtained}/{x.max}</span>
-                    </li>
-                  ))}
-                </ul>
-              </CardContent>
+              {!e.examAbsent && (
+                <CardContent>
+                  <ul className="divide-y text-sm">
+                    {e.subjects.map((x) => (
+                      <li key={x.name} className="flex justify-between gap-2 py-2">
+                        <span>{x.name}{x.remarks && <span className="text-muted-foreground"> · {x.remarks}</span>}</span>
+                        <span className={x.failed ? "font-medium text-red-700" : "font-medium"}>
+                          {x.obtained === "AB" ? "AB" : `${x.obtained}/${x.max}`}
+                          {x.grade && x.obtained !== "AB" && <span className="ml-2 text-xs text-muted-foreground">{x.grade}</span>}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+                </CardContent>
+              )}
             </Card>
           ))}
         </TabsContent>

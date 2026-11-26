@@ -1,8 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { FileText, PencilLine } from "lucide-react";
-import { createClient } from "@/lib/db/server";
-import { getAcademicYears } from "@/lib/data/classes";
+import { requireRole } from "@/lib/auth";
+import { examsPage } from "@/lib/repo/academics";
+import { getAcademicYears } from "@/lib/repo/classes";
 import { classLabel } from "@/lib/format";
 import { formatDate } from "@/lib/dates";
 import { Button } from "@/components/ui/button";
@@ -14,29 +15,22 @@ import { CreateExamDialog, DeleteExamButton, DeleteSubjectButton, EditExamDialog
 export const metadata: Metadata = { title: "Subjects & Exams" };
 
 export default async function ExamsPage({ searchParams }: PageProps<"/admin/exams">) {
+  const user = await requireRole("headmaster");
   const sp = await searchParams;
-  const years = await getAcademicYears();
+  const years = await getAcademicYears(user);
   const year = years.find((y) => y.id === sp.year) ?? years.find((y) => y.is_current) ?? years[0];
 
-  const dbc = await createClient();
-  const [{ data: subjects }, { data: classes }, { data: exams }] = await Promise.all([
-    dbc.from("subjects").select("id, name, max_marks, sort_order").order("sort_order").order("name"),
-    year ? dbc.from("classes").select("id, name, section").eq("academic_year_id", year.id).order("name")
-      : Promise.resolve({ data: [] as { id: string; name: string; section: string | null }[] }),
-    year ? dbc.from("exams").select("id, name, exam_date, class_id, marks(count)").eq("academic_year_id", year.id)
-      .order("exam_date", { ascending: false, nullsFirst: false }).order("name")
-      : Promise.resolve({ data: [] as never[] }),
-  ]);
-  const classOpts = (classes ?? []).map((c) => ({ id: c.id, label: classLabel(c) }))
+  const { subjects, classes, exams } = await examsPage(user, year?.id);
+  const classOpts = classes.map((c) => ({ id: c.id, label: classLabel(c) }))
     .sort((a, b) => a.label.localeCompare(b.label, undefined, { numeric: true }));
-  const totalMax = (subjects ?? []).reduce((s, x) => s + Number(x.max_marks), 0);
+  const totalMax = subjects.reduce((s, x) => s + Number(x.max_marks), 0);
 
   // group exams by name+date so "First Term" for all classes shows as one row
-  const groups = new Map<string, { name: string; exam_date: string | null; items: { id: string; class_id: string; marks: number }[] }>();
+  const groups = new Map<string, { name: string; exam_date: string | null; items: { id: string; class_id: string; marks: number; weight: number }[] }>();
   for (const e of exams ?? []) {
     const key = `${e.name.toLowerCase()}|${e.exam_date ?? ""}`;
     const g = groups.get(key) ?? { name: e.name, exam_date: e.exam_date, items: [] };
-    g.items.push({ id: e.id, class_id: e.class_id, marks: (e.marks as unknown as { count: number }[])?.[0]?.count ?? 0 });
+    g.items.push({ id: e.id, class_id: e.class_id, weight: Number(e.weight), marks: (e.marks as unknown as { count: number }[])?.[0]?.count ?? 0 });
     groups.set(key, g);
   }
   const label = new Map(classOpts.map((c) => [c.id, c.label]));
@@ -49,18 +43,18 @@ export default async function ExamsPage({ searchParams }: PageProps<"/admin/exam
         <CardHeader>
           <CardTitle className="flex items-center justify-between gap-2">
             <span>Subjects <span className="text-sm font-normal text-muted-foreground">· total {totalMax} marks</span></span>
-            <SubjectDialog nextOrder={(subjects?.length ?? 0) + 1} />
+            <SubjectDialog nextOrder={subjects.length + 1} />
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {!subjects?.length ? <EmptyState title="No subjects yet.">Add the subjects that every exam will have.</EmptyState> : (
+          {!subjects.length ? <EmptyState title="No subjects yet.">Add the subjects that every exam will have.</EmptyState> : (
             <ul className="divide-y rounded-lg border">
               {subjects.map((s) => (
                 <li key={s.id} className="flex items-center gap-2 px-3 py-2">
                   <span className="w-8 text-sm text-muted-foreground tabular-nums">{s.sort_order}</span>
                   <span className="flex-1 font-medium">{s.name}</span>
-                  <span className="text-sm tabular-nums text-muted-foreground">max {Number(s.max_marks)}</span>
-                  <SubjectDialog subject={{ id: s.id, name: s.name, max_marks: Number(s.max_marks), sort_order: s.sort_order }} />
+                  <span className="text-sm tabular-nums text-muted-foreground">max {Number(s.max_marks)} · pass {Number(s.pass_percent)}%</span>
+                  <SubjectDialog subject={{ id: s.id, name: s.name, max_marks: Number(s.max_marks), pass_percent: Number(s.pass_percent), sort_order: s.sort_order }} />
                   <DeleteSubjectButton id={s.id} name={s.name} />
                 </li>
               ))}
@@ -99,7 +93,9 @@ export default async function ExamsPage({ searchParams }: PageProps<"/admin/exam
                       .map((e) => (
                         <li key={e.id} className="flex flex-wrap items-center gap-2 px-3 py-2">
                           <span className="min-w-28 flex-1 font-medium">{label.get(e.class_id)}</span>
-                          <span className="text-sm text-muted-foreground">{e.marks ? `${e.marks} marks entered` : "No marks yet"}</span>
+                          <span className="text-sm text-muted-foreground">
+                            {e.marks ? `${e.marks} marks entered` : "No marks yet"}{e.weight !== 1 ? ` · weight ${e.weight}` : ""}
+                          </span>
                           <div className="flex gap-1">
                             <Button variant="outline" size="sm" render={<Link href={`/admin/exams/${e.id}/marks`} />} nativeButton={false}>
                               <PencilLine /> Marks
@@ -107,7 +103,7 @@ export default async function ExamsPage({ searchParams }: PageProps<"/admin/exam
                             <Button variant="outline" size="sm" render={<Link href={`/admin/report-cards?class=${e.class_id}&exam=${e.id}&year=${year.id}`} />} nativeButton={false}>
                               <FileText /> Results
                             </Button>
-                            <EditExamDialog exam={{ id: e.id, name: g.name, exam_date: g.exam_date ?? "" }} />
+                            <EditExamDialog exam={{ id: e.id, name: g.name, exam_date: g.exam_date ?? "", weight: e.weight }} />
                             <DeleteExamButton id={e.id} name={`${g.name} (${label.get(e.class_id)})`} marks={e.marks} />
                           </div>
                         </li>

@@ -1,15 +1,30 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { useMemo, useState, useTransition } from "react";
+import type { GradeBand } from "@/lib/grades";
+import { computeResults, ordinal, type ResultMark } from "@/lib/results";
 import { toast } from "sonner";
 import { Check, CircleAlert, Loader2, Save } from "lucide-react";
 import { saveMarks } from "@/actions/teacher";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 
-type Subject = { id: string; name: string; max: number };
+type Subject = { id: string; name: string; max: number; passPercent: number };
 type Student = { id: string; name: string; nameMl: string | null };
 type RowState = "idle" | "dirty" | "saving" | "saved" | "error";
+
+/** Grade, result and rank of one row, as typed so far. */
+function LiveResult({ r, className }: { r: ReturnType<typeof computeResults>[number] | undefined; className?: string }) {
+  if (!r || (!r.subjectsEntered && !r.examAbsent)) return <span className={cn("text-muted-foreground", className)}>-</span>;
+  const tone = r.result === "Pass" ? "text-emerald-700" : r.result === "Fail" || r.result === "Absent" ? "text-red-700" : "text-muted-foreground";
+  return (
+    <span className={className}>
+      {r.grade && <b className="mr-1">{r.grade}</b>}
+      <span className={tone}>{r.result ?? "Pending"}</span>
+      {r.rank && <span className="ml-1 text-muted-foreground">· {ordinal(r.rank)}</span>}
+    </span>
+  );
+}
 
 /** Parse what the teacher typed: "" -> null, "12.5" -> 12.5, "AB" (missed the subject) -> "AB", otherwise NaN. */
 function parse(v: string): number | "AB" | null {
@@ -20,19 +35,35 @@ function parse(v: string): number | "AB" | null {
 }
 const isNumber = (n: number | "AB" | null): n is number => typeof n === "number" && !Number.isNaN(n);
 
-export function MarksGrid({ examId, subjects, students, initial, examAbsent = [], canClear = false }: {
+export function MarksGrid({ examId, subjects, students, initial, examAbsent = [], scale, canClear = false }: {
   examId: string; subjects: Subject[]; students: Student[];
   /** saved marks; "AB" for a subject the student missed */
   initial: Record<string, Record<string, number | "AB">>;
   /** students marked absent for the whole exam: no marks */
   examAbsent?: string[];
+  scale: GradeBand[];
   /** headmaster only: emptying a saved cell deletes that mark */
   canClear?: boolean;
 }) {
-  const away = new Set(examAbsent);
+  const away = useMemo(() => new Set(examAbsent), [examAbsent]);
   const [values, setValues] = useState<Record<string, Record<string, string>>>(() =>
     Object.fromEntries(students.map((s) => [s.id,
       Object.fromEntries(subjects.map((sub) => [sub.id, initial[s.id]?.[sub.id]?.toString() ?? ""]))])));
+
+  // grade, result and rank from what is typed now (same maths as the results and report cards)
+  const live = useMemo(() => {
+    const marks: ResultMark[] = [];
+    for (const s of students) {
+      for (const sub of subjects) {
+        const n = parse(values[s.id][sub.id]);
+        if (n === "AB") marks.push({ student_id: s.id, subject_id: sub.id, marks_obtained: 0, is_absent: true });
+        else if (isNumber(n) && n <= sub.max) marks.push({ student_id: s.id, subject_id: sub.id, marks_obtained: n });
+      }
+    }
+    const rows = computeResults(students.map((s) => ({ id: s.id, name: s.name, nameMl: s.nameMl, admissionNo: "" })),
+      subjects, marks, away, scale);
+    return new Map(rows.map((r) => [r.id, r]));
+  }, [students, subjects, values, away, scale]);
   const [rowState, setRowState] = useState<Record<string, RowState>>({});
   const [errors, setErrors] = useState<Record<string, string>>({}); // key student:subject
   const [savingAll, startAll] = useTransition();
@@ -152,6 +183,7 @@ export function MarksGrid({ examId, subjects, students, initial, examAbsent = []
               {statusIcon(s.id)}
               <span className="text-sm font-semibold tabular-nums">{away.has(s.id) ? "Absent" : `${total(s.id)}/${maxTotal}`}</span>
             </div>
+            <LiveResult r={live.get(s.id)} className="mb-2 text-xs" />
             <div className="grid grid-cols-2 gap-2">
               {subjects.map((sub) => (
                 <label key={sub.id} className="space-y-1">
@@ -176,6 +208,7 @@ export function MarksGrid({ examId, subjects, students, initial, examAbsent = []
                 </th>
               ))}
               <th className="px-3 py-2 text-right font-medium">Total<div className="text-xs font-normal text-muted-foreground">/{maxTotal}</div></th>
+              <th className="px-2 py-2 text-left font-medium">Grade · result · rank</th>
               <th className="w-8" />
             </tr>
           </thead>
@@ -188,6 +221,7 @@ export function MarksGrid({ examId, subjects, students, initial, examAbsent = []
                 </td>
                 {subjects.map((sub) => <td key={sub.id} className="px-2 py-1.5">{input(s, sub, "w-20 mx-auto block")}</td>)}
                 <td className="px-3 py-2 text-right font-semibold tabular-nums">{away.has(s.id) ? <span className="text-red-700">Absent</span> : total(s.id)}</td>
+                <td className="px-2 py-2 whitespace-nowrap"><LiveResult r={live.get(s.id)} className="text-xs" /></td>
                 <td className="px-2">{statusIcon(s.id)}</td>
               </tr>
             ))}

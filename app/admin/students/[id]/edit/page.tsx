@@ -1,8 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { createClient } from "@/lib/db/server";
-import { getClassOptions } from "@/lib/data/classes";
-import { prayerUnitOptions } from "@/lib/data/students";
+import { requireRole } from "@/lib/auth";
+import { getClassOptions } from "@/lib/repo/classes";
+import { getStudentForEdit, prayerUnitOptions } from "@/lib/repo/students";
 import { FATHER_NAME_PLACEHOLDER, NOT_ASSIGNED_PRAYER_UNIT } from "@/lib/config";
 import { PageHeader } from "@/components/page-header";
 import { StudentForm } from "@/components/students/student-form";
@@ -12,13 +12,10 @@ export const metadata: Metadata = { title: "Edit student" };
 export default async function EditStudentPage({ params }: PageProps<"/admin/students/[id]/edit">) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const dbc = await createClient();
-  const [{ data: s }, classes] = await Promise.all([
-    dbc.from("students").select("*").eq("id", id).maybeSingle(),
-    getClassOptions(),
-  ]);
+  const user = await requireRole("headmaster");
+  const [s, classes] = await Promise.all([getStudentForEdit(user, id), getClassOptions(user)]);
   if (!s) notFound();
-  const prayerUnits = await prayerUnitOptions(s.prayer_unit_id);
+  const prayerUnits = await prayerUnitOptions(user, s.prayer_unit_id);
   // placeholders written when the fields became required are left blank, so they get filled in
   const real = (v: string, placeholder: string) => (v === placeholder ? "" : v);
 
