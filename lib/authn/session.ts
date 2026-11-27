@@ -4,9 +4,9 @@ import { changeOwnPassword, loginTarget, loadSessionUser, type Client, type Sess
 
 /** The user behind an Auth.js session ({ user.id, authAt }), checked against the database. */
 export function sessionUser(session: unknown): Promise<SessionUser | null> {
-  const s = session as { user?: { id?: string }; authAt?: number } | null | undefined;
+  const s = session as { user?: { id?: string }; authAt?: number; remember?: boolean } | null | undefined;
   if (!s?.user?.id) return Promise.resolve(null);
-  return loadSessionUser(getDb(), { id: s.user.id, authAt: s.authAt } as Partial<SessionClaims>);
+  return loadSessionUser(getDb(), { id: s.user.id, authAt: s.authAt, remember: s.remember } as Partial<SessionClaims>);
 }
 
 /** Right after a successful sign-in: where to send this person. */

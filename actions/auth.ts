@@ -20,11 +20,11 @@ const FAILED: Record<string, string> = {
 export async function signIn(input: unknown): Promise<ActionResult> {
   const parsed = signInSchema.safeParse(input);
   if (!parsed.success) return { ok: false, error: "Enter your email and password." };
-  const { email, password, next } = parsed.data;
+  const { email, password, next, remember } = parsed.data;
 
   let target: string;
   try {
-    await authSignIn("credentials", { email, password, redirect: false });
+    await authSignIn("credentials", { email, password, remember: String(remember), redirect: false });
     const who = await findLoginTarget(email);
     if (!who) return { ok: false, error: FAILED.invalid };
     const home = homeFor(who.role);

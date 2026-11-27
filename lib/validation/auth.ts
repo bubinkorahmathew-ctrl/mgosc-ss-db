@@ -8,6 +8,8 @@ export const signInSchema = z.object({
   email: z.email("Enter a valid email address.").trim().toLowerCase().max(254),
   password: z.string().min(1, "Enter your password.").max(200),
   next: z.string().max(500).optional(),
+  /** stay signed in for 14 days; otherwise 12 hours */
+  remember: z.boolean().default(true),
 });
 export type SignInInput = z.infer<typeof signInSchema>;
 

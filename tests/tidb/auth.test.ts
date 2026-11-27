@@ -135,6 +135,15 @@ describe("sign-ins (the JWT claims)", () => {
     expect(await loadSessionUser(db, claims, claims.authAt + 86_400_000)).not.toBeNull();
   });
 
+  it("without “Remember me” a sign-in ends after 12 hours", async () => {
+    const claims = { ...(await claimsFor(HEAD.email, HEAD.password)), remember: false };
+    expect(await loadSessionUser(db, claims, claims.authAt + 11 * 3_600_000)).not.toBeNull();
+    expect(await loadSessionUser(db, claims, claims.authAt + 13 * 3_600_000)).toBeNull();
+    // with it (or from before the option existed): 14 days
+    expect(await loadSessionUser(db, { ...claims, remember: true }, claims.authAt + 13 * 3_600_000)).not.toBeNull();
+    expect(await loadSessionUser(db, { id: claims.id, authAt: claims.authAt }, claims.authAt + 13 * 3_600_000)).not.toBeNull();
+  });
+
   it("forged and malformed claims are refused", async () => {
     const now = Date.now();
     for (const claims of [null, undefined, {}, { id: IDS.headmaster }, { id: "x", authAt: now },

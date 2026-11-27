@@ -8,6 +8,8 @@ import { hashPassword, needsRehash, verifyPassword } from "./password";
 
 /** A sign-in lasts at most this long, however often it is used. */
 export const SESSION_DAYS = 14;
+/** Without "Remember me" a sign-in lasts this long (a shared church computer). */
+export const SHORT_SESSION_HOURS = 12;
 
 /** Where the request came from, and the key the lockout table is hashed with. */
 export type Client = { device: string; secret: string };
@@ -86,7 +88,8 @@ export async function loginTarget(db: Db, email: string): Promise<{ role: UserRo
 }
 
 /** What the sign-in cookie (an Auth.js JWT) says: who, and when they typed their password. */
-export type SessionClaims = { id: string; authAt: number };
+/** `remember`: false for a sign-in without "Remember me" (12 hours instead of 14 days). */
+export type SessionClaims = { id: string; authAt: number; remember?: boolean };
 
 export type SessionUser = {
   id: string; email: string; superAdmin: boolean; mustChangePassword: boolean; profile: ProfileRow;
@@ -97,9 +100,10 @@ export type SessionUser = {
  * a sign-in older than the last password change, or of an inactive profile, is refused.
  */
 export async function loadSessionUser(db: Db, claims: Partial<SessionClaims> | null | undefined, now = Date.now()): Promise<SessionUser | null> {
-  const { id, authAt } = claims ?? {};
+  const { id, authAt, remember } = claims ?? {};
   if (typeof id !== "string" || !/^[0-9a-f-]{36}$/i.test(id) || typeof authAt !== "number") return null;
-  if (now - authAt > SESSION_DAYS * 86_400_000 || authAt > now + 60_000) return null;
+  const lifetime = remember === false ? SHORT_SESSION_HOURS * 3_600_000 : SESSION_DAYS * 86_400_000;
+  if (now - authAt > lifetime || authAt > now + 60_000) return null;
 
   const [row] = await db.select({
     email: users.email, changedAt: users.passwordChangedAt, mustChange: users.mustChangePassword,

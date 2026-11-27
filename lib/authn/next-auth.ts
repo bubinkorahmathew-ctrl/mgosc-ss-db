@@ -35,7 +35,7 @@ export const { auth, signIn, signOut } = NextAuth({
   pages: { signIn: "/login", error: "/login" },
   providers: [
     Credentials({
-      credentials: { email: {}, password: {} },
+      credentials: { email: {}, password: {}, remember: {} },
       async authorize(raw, request) {
         const parsed = signInSchema.safeParse(raw);
         if (!parsed.success) throw new LoginRefused("invalid");
@@ -43,7 +43,8 @@ export const { auth, signIn, signOut } = NextAuth({
           { device: clientIp(request.headers), secret: authSecret() });
         if (!result.ok) throw new LoginRefused(result.reason);
         const { id, email, role, authAt } = result.user;
-        return { id, email, role, authAt };
+        // "Remember me": anything but an explicit "false" keeps the usual 14 days
+        return { id, email, role, authAt, remember: (raw as { remember?: unknown }).remember !== "false" };
       },
     }),
   ],
@@ -51,8 +52,8 @@ export const { auth, signIn, signOut } = NextAuth({
     jwt({ token, user }) {
       if (user) {
         // a fresh sign-in: keep only what is needed
-        const { role, authAt } = user as { role?: string; authAt?: number };
-        return { sub: user.id, role, authAt };
+        const { role, authAt, remember } = user as { role?: string; authAt?: number; remember?: boolean };
+        return { sub: user.id, role, authAt, remember };
       }
       return token;
     },
@@ -61,6 +62,7 @@ export const { auth, signIn, signOut } = NextAuth({
         ...session,
         user: { ...session.user, id: token.sub ?? "", role: token.role as string | undefined },
         authAt: token.authAt as number | undefined,
+        remember: token.remember as boolean | undefined,
       };
     },
   },
