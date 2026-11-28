@@ -34,6 +34,16 @@ export const changePasswordSchema = z.object({
   .refine((v) => v.password !== v.current, { message: "The new password must be different.", path: ["password"] });
 export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 
+/** "Forgot password": the email, plus a hidden honeypot field bots fill in. */
+export const forgotPasswordSchema = z.object({
+  email: signInSchema.shape.email,
+  website: z.string().max(200).optional(),
+});
+
+/** Choosing a new password from an emailed link: the same rules as everywhere else. */
+export const resetPasswordSchema = z.object({ password: newPasswordSchema, confirm: z.string() })
+  .refine((v) => v.password === v.confirm, { message: "Passwords do not match.", path: ["confirm"] });
+
 /** Only allow same-site relative redirects like /teacher/attendance. */
 export function safeNext(next: string | undefined | null): string | null {
   if (!next || !next.startsWith("/") || next.startsWith("//") || next.includes("\\")) return null;

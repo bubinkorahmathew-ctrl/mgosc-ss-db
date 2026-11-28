@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { notifyAdminsOfRegistration, notifyTeachersOfNewStudent } from "@/lib/email/notifications";
 import { assertRole } from "@/lib/auth";
 import { requestClient } from "@/lib/authn/request";
 import * as registrations from "@/lib/repo/registrations";
@@ -22,6 +24,8 @@ export async function submitRegistration(input: unknown): Promise<ActionResult> 
     if (!(await registrations.submitRegistration(data, await requestClient()))) {
       return { ok: false, error: "Too many registrations from this device. Please try again in an hour." };
     }
+    // emailed after the response; a failed email never undoes the registration
+    after(() => notifyAdminsOfRegistration({ ...data, id: null }));
     revalidatePath("/admin/registrations");
     return { ok: true };
   } catch (e) {
@@ -34,6 +38,7 @@ export async function approveRegistration(input: unknown): Promise<ActionResult<
   try {
     const user = await assertRole("headmaster");
     const studentId = await registrations.approveRegistration(user, approveRegistrationSchema.parse(input));
+    after(() => notifyTeachersOfNewStudent(studentId, user.id));
     revalidatePath("/admin/registrations");
     revalidatePath("/admin/students");
     revalidatePath("/admin");

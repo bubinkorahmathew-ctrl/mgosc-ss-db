@@ -1,6 +1,7 @@
 import "server-only";
 import { getDb } from "@/db/client";
 import { changeOwnPassword, loginTarget, loadSessionUser, type Client, type SessionClaims, type SessionUser } from "./login";
+import { createResetLink, resetLinkIsValid, resetPasswordWithLink } from "./reset";
 
 /** The user behind an Auth.js session ({ user.id, authAt }), checked against the database. */
 export function sessionUser(session: unknown): Promise<SessionUser | null> {
@@ -15,3 +16,7 @@ export const findLoginTarget = (email: string) => loginTarget(getDb(), email);
 /** The signed-in user's own password change (see changeOwnPassword). */
 export const changePasswordFor = (userId: string, current: string, next: string, client: Client) =>
   changeOwnPassword(getDb(), userId, current, next, client);
+/** "Forgot password" (see reset.ts): a new link for this email, or null. */
+export const makeResetLink = (email: string) => createResetLink(getDb(), email);
+export const checkResetLink = (token: string) => resetLinkIsValid(getDb(), token);
+export const redeemResetLink = (token: string, password: string) => resetPasswordWithLink(getDb(), token, password);

@@ -1,7 +1,8 @@
 /** Sign-in, rate limits and stored images. Never reached by the app's data access, only by auth and file code. */
 import { sql } from "drizzle-orm";
-import { char, check, index, int, mysqlEnum, mysqlTable, primaryKey } from "drizzle-orm/mysql-core";
+import { char, check, index, int, mysqlEnum, mysqlTable, primaryKey, uniqueIndex } from "drizzle-orm/mysql-core";
 import { createdAt, mediumblob, utc } from "./columns";
+import { users } from "./people";
 
 /**
  * Failed sign-ins (and attempts in progress), keyed by HMACs of the email and of the device's
@@ -17,6 +18,22 @@ export const loginAttempts = mysqlTable("login_attempts", {
   index("login_attempts_account_idx").on(t.accountKey, t.createdAt),
   index("login_attempts_device_idx").on(t.deviceKey, t.createdAt),
   index("login_attempts_created_idx").on(t.createdAt),
+]);
+
+/**
+ * "Forgot password" links. Only the SHA-256 of the emailed token is stored; a link works once,
+ * for an hour. Older unused links of the same user are removed when a new one is made.
+ */
+export const passwordResetTokens = mysqlTable("password_reset_tokens", {
+  id: char("id", { length: 36 }).primaryKey(),
+  userId: char("user_id", { length: 36 }).notNull().references(() => users.id, { onDelete: "cascade" }),
+  tokenHash: char("token_hash", { length: 64 }).notNull(),
+  expiresAt: utc("expires_at").notNull(),
+  usedAt: utc("used_at"),
+  createdAt: createdAt(),
+}, (t) => [
+  uniqueIndex("password_reset_tokens_hash_key").on(t.tokenHash),
+  index("password_reset_tokens_user_idx").on(t.userId, t.createdAt),
 ]);
 
 /**

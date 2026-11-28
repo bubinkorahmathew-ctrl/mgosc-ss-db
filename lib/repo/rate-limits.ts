@@ -7,6 +7,8 @@ import { rateLimits } from "@/db/schema";
 /** Public forms and their limits: at most `max` submissions per device per window. */
 export const RATE_LIMITS = {
   registration: { max: 5, minutes: 60 },
+  /** "Forgot password" requests from one device (each email address also allows 3 links an hour) */
+  password_reset: { max: 10, minutes: 60 },
 } as const;
 export type RateLimitName = keyof typeof RATE_LIMITS;
 

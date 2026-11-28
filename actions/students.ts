@@ -1,6 +1,8 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { after } from "next/server";
+import { notifyTeachersOfNewStudent } from "@/lib/email/notifications";
 import { assertRole, assertSuperAdmin } from "@/lib/auth";
 import {
   deleteStudentSchema, moveStudentSchema, setStudentStatusSchema, studentSchema, updateStudentSchema,
@@ -19,6 +21,8 @@ export async function createStudent(input: unknown): Promise<ActionResult<{ id: 
   try {
     const user = await assertRole("teacher", "headmaster");
     const row = await students.createStudent(user, studentSchema.parse(input));
+    // the class's other teachers hear about it (not the person who added the student)
+    after(() => notifyTeachersOfNewStudent(row.id, user.id));
     revalidateStudents();
     revalidatePath("/teacher/students");
     revalidatePath("/teacher");

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { toast } from "sonner";
@@ -22,7 +23,6 @@ const field = cn(
 export function LoginForm({ next }: { next?: string }) {
   const [pending, start] = useTransition();
   const [show, setShow] = useState(false);
-  const [help, setHelp] = useState(false);
   const form = useForm<In, unknown, Out>({
     resolver: zodResolver(signInSchema),
     defaultValues: { email: "", password: "", next, remember: true },
@@ -65,16 +65,10 @@ export function LoginForm({ next }: { next?: string }) {
           <input type="checkbox" className="size-4 rounded accent-[#183B70]" {...form.register("remember")} />
           Remember me
         </label>
-        <button type="button" onClick={() => setHelp((h) => !h)} aria-expanded={help} aria-controls="forgot-help"
-          className="min-h-11 font-medium text-[#183B70] underline-offset-4 hover:underline">
+        <Link href="/forgot-password" className="flex min-h-11 items-center font-medium text-[#183B70] underline-offset-4 hover:underline">
           Forgot password?
-        </button>
+        </Link>
       </div>
-      {help && (
-        <p id="forgot-help" role="note" className="-mt-2 rounded-xl border border-[#C6A04A]/40 bg-[#FFF9ED] px-4 py-3 text-sm text-[#5b4a1f]">
-          Ask the headmaster to reset your password. You&apos;ll get a temporary password and choose your own when you sign in.
-        </p>
-      )}
 
       <button type="submit" disabled={pending}
         className={cn(

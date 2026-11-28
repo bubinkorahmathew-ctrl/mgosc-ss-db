@@ -17,6 +17,8 @@ export const profiles = mysqlTable("profiles", {
   createdAt: createdAt(),
   /** a headmaster with every right (settings, other admins) */
   isSuper: boolean("is_super").notNull().default(false),
+  /** receive notification emails (new registrations, new students in their class) */
+  emailNotifications: boolean("email_notifications").notNull().default(true),
 }, (t) => [
   check("profiles_full_name_check", sql`char_length(trim(${t.fullName})) > 0`),
 ]);
