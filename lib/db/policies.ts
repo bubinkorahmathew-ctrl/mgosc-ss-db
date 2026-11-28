@@ -1,6 +1,6 @@
 /**
- * Who may read and write which rows. This replaces the 35 row level security policies of
- * supabase/migrations: TiDB has no RLS, so this file is the security boundary.
+ * Who may read and write which rows. TiDB has no row level security, so this file is the
+ * security boundary (ported from the original Postgres policies; tests/tidb checks every case).
  *
  * Default deny: an operation that is not listed here is refused.
  *
@@ -29,7 +29,7 @@ export const NONE: Sql = { sql: "1=0", params: [] };
 export const ALL: Sql = { sql: "1=1", params: [] };
 
 /** Reachable only through system.ts, whoever the caller is. */
-export const INTERNAL_TABLES: ReadonlySet<TableName> = new Set<TableName>(["registration_attempts", "number_counters"]);
+export const INTERNAL_TABLES: ReadonlySet<TableName> = new Set<TableName>(["number_counters"]);
 
 // ---------------------------------------------------------------------------------------------
 // Reading: a single statement, so role, active flag and assignments are always current

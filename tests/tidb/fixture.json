@@ -1,0 +1,370 @@
+{
+ "profiles": [
+  {
+   "id": "11111111-1111-1111-1111-111111111111",
+   "role": "headmaster",
+   "phone": "9000000000",
+   "active": true,
+   "full_name": "Headmaster (change me)",
+   "created_at": "2026-11-28T08:06:27.289+00:00"
+  },
+  {
+   "id": "22222222-2222-2222-2222-222222222221",
+   "role": "teacher",
+   "phone": "9000000001",
+   "active": true,
+   "full_name": "Mary Thomas",
+   "created_at": "2026-11-28T08:06:27.289+00:00"
+  },
+  {
+   "id": "22222222-2222-2222-2222-222222222222",
+   "role": "teacher",
+   "phone": "9000000002",
+   "active": true,
+   "full_name": "George Varghese",
+   "created_at": "2026-11-28T08:06:27.289+00:00"
+  }
+ ],
+ "academic_years": [
+  {
+   "id": "aaaaaaaa-0000-0000-0000-000000002026",
+   "name": "2026-27",
+   "end_date": "2027-03-31",
+   "is_current": true,
+   "start_date": "2026-06-01"
+  }
+ ],
+ "classes": [
+  {
+   "id": "cccccccc-0000-0000-0000-000000000001",
+   "name": "Class 1",
+   "section": null,
+   "created_at": "2026-11-28T08:06:27.289+00:00",
+   "academic_year_id": "aaaaaaaa-0000-0000-0000-000000002026"
+  },
+  {
+   "id": "cccccccc-0000-0000-0000-000000000002",
+   "name": "Class 2",
+   "section": null,
+   "created_at": "2026-11-28T08:06:27.289+00:00",
+   "academic_year_id": "aaaaaaaa-0000-0000-0000-000000002026"
+  },
+  {
+   "id": "cccccccc-0000-0000-0000-000000000003",
+   "name": "Class 3",
+   "section": null,
+   "created_at": "2026-11-28T08:06:27.289+00:00",
+   "academic_year_id": "aaaaaaaa-0000-0000-0000-000000002026"
+  }
+ ],
+ "class_teachers": [
+  {
+   "class_id": "cccccccc-0000-0000-0000-000000000001",
+   "teacher_id": "22222222-2222-2222-2222-222222222221"
+  },
+  {
+   "class_id": "cccccccc-0000-0000-0000-000000000002",
+   "teacher_id": "22222222-2222-2222-2222-222222222222"
+  },
+  {
+   "class_id": "cccccccc-0000-0000-0000-000000000003",
+   "teacher_id": "22222222-2222-2222-2222-222222222222"
+  }
+ ],
+ "students": [
+  {
+   "id": "5d000000-0000-0000-0000-000000000001",
+   "dob": "2020-07-14",
+   "gender": "male",
+   "status": "active",
+   "address": "Kottayam",
+   "baptised": true,
+   "class_id": "cccccccc-0000-0000-0000-000000000001",
+   "full_name": "Aaron Mathew",
+   "photo_url": null,
+   "created_at": "2026-11-28T08:06:27.289+00:00",
+   "father_name": "Mathew John",
+   "mother_name": "Anu Mathew",
+   "school_name": "St. Mary's School",
+   "admission_no": "SS-2026-0001",
+   "full_name_ml": "ആരോൺ മാത്യു",
+   "school_class": "Grade 1",
+   "guardian_phone": "9447000001"
+  },
+  {
+   "id": "5d000000-0000-0000-0000-000000000002",
+   "dob": "2020-11-02",
+   "gender": "female",
+   "status": "active",
+   "address": "Kottayam",
+   "baptised": true,
+   "class_id": "cccccccc-0000-0000-0000-000000000001",
+   "full_name": "Anna Joseph",
+   "photo_url": null,
+   "created_at": "2026-11-28T08:06:27.289+00:00",
+   "father_name": "Joseph Kurian",
+   "mother_name": "Mini Joseph",
+   "school_name": "Holy Cross School",
+   "admission_no": "SS-2026-0002",
+   "full_name_ml": "അന്ന ജോസഫ്",
+   "school_class": "Grade 1",
+   "guardian_phone": "9447000002"
+  },
+  {
+   "id": "5d000000-0000-0000-0000-000000000003",
+   "dob": "2021-01-20",
+   "gender": "male",
+   "status": "active",
+   "address": "Pala",
+   "baptised": false,
+   "class_id": "cccccccc-0000-0000-0000-000000000001",
+   "full_name": "Ben Varghese",
+   "photo_url": null,
+   "created_at": "2026-11-28T08:06:27.289+00:00",
+   "father_name": "Varghese P",
+   "mother_name": "Liji Varghese",
+   "school_name": null,
+   "admission_no": "SS-2026-0003",
+   "full_name_ml": null,
+   "school_class": "UKG",
+   "guardian_phone": "9447000003"
+  },
+  {
+   "id": "5d000000-0000-0000-0000-000000000004",
+   "dob": "2019-03-09",
+   "gender": "female",
+   "status": "active",
+   "address": "Kottayam",
+   "baptised": true,
+   "class_id": "cccccccc-0000-0000-0000-000000000002",
+   "full_name": "Sreekutty George",
+   "photo_url": null,
+   "created_at": "2026-11-28T08:06:27.289+00:00",
+   "father_name": "George K",
+   "mother_name": "Bindu George",
+   "school_name": "St. Mary's School",
+   "admission_no": "SS-2026-0004",
+   "full_name_ml": "ശ്രീക്കുട്ടി ജോർജ്",
+   "school_class": "Grade 2",
+   "guardian_phone": "9447000004"
+  },
+  {
+   "id": "5d000000-0000-0000-0000-000000000005",
+   "dob": "2019-08-25",
+   "gender": "male",
+   "status": "active",
+   "address": "Changanacherry",
+   "baptised": true,
+   "class_id": "cccccccc-0000-0000-0000-000000000002",
+   "full_name": "Geevarghese Thomas",
+   "photo_url": null,
+   "created_at": "2026-11-28T08:06:27.289+00:00",
+   "father_name": "Thomas Abraham",
+   "mother_name": "Reena Thomas",
+   "school_name": "Govt. LP School",
+   "admission_no": "SS-2026-0005",
+   "full_name_ml": "ഗീവർഗീസ് തോമസ്",
+   "school_class": "Grade 2",
+   "guardian_phone": "9447000005"
+  },
+  {
+   "id": "5d000000-0000-0000-0000-000000000006",
+   "dob": "2019-12-01",
+   "gender": "female",
+   "status": "active",
+   "address": "Pala",
+   "baptised": true,
+   "class_id": "cccccccc-0000-0000-0000-000000000002",
+   "full_name": "Riya Philip",
+   "photo_url": null,
+   "created_at": "2026-11-28T08:06:27.289+00:00",
+   "father_name": "Philip M",
+   "mother_name": "Susan Philip",
+   "school_name": "Holy Cross School",
+   "admission_no": "SS-2026-0006",
+   "full_name_ml": null,
+   "school_class": "Grade 3",
+   "guardian_phone": "9447000006"
+  },
+  {
+   "id": "5d000000-0000-0000-0000-000000000007",
+   "dob": "2018-05-17",
+   "gender": "male",
+   "status": "active",
+   "address": "Kottayam",
+   "baptised": true,
+   "class_id": "cccccccc-0000-0000-0000-000000000003",
+   "full_name": "Joel Abraham",
+   "photo_url": null,
+   "created_at": "2026-11-28T08:06:27.289+00:00",
+   "father_name": "Abraham C",
+   "mother_name": "Jincy Abraham",
+   "school_name": "St. Mary's School",
+   "admission_no": "SS-2026-0007",
+   "full_name_ml": "ജോയൽ എബ്രഹാം",
+   "school_class": "Grade 3",
+   "guardian_phone": "9447000007"
+  },
+  {
+   "id": "5d000000-0000-0000-0000-000000000008",
+   "dob": "2018-09-30",
+   "gender": "female",
+   "status": "active",
+   "address": "Kottayam",
+   "baptised": true,
+   "class_id": "cccccccc-0000-0000-0000-000000000003",
+   "full_name": "Elsa Kurian",
+   "photo_url": null,
+   "created_at": "2026-11-28T08:06:27.289+00:00",
+   "father_name": "Kurian T",
+   "mother_name": "Asha Kurian",
+   "school_name": "Govt. UP School",
+   "admission_no": "SS-2026-0008",
+   "full_name_ml": null,
+   "school_class": "Grade 4",
+   "guardian_phone": "9447000008"
+  },
+  {
+   "id": "5d000000-0000-0000-0000-000000000009",
+   "dob": "2017-11-11",
+   "gender": "male",
+   "status": "active",
+   "address": "Pala",
+   "baptised": true,
+   "class_id": "cccccccc-0000-0000-0000-000000000003",
+   "full_name": "Nithin Jacob",
+   "photo_url": null,
+   "created_at": "2026-11-28T08:06:27.289+00:00",
+   "father_name": "Jacob V",
+   "mother_name": "Shiny Jacob",
+   "school_name": "Holy Cross School",
+   "admission_no": "SS-2026-0009",
+   "full_name_ml": "നിതിൻ ജേക്കബ്",
+   "school_class": "Grade 4",
+   "guardian_phone": "9447000009"
+  },
+  {
+   "id": "5d000000-0000-0000-0000-000000000010",
+   "dob": "2018-02-28",
+   "gender": "female",
+   "status": "active",
+   "address": "Changanacherry",
+   "baptised": false,
+   "class_id": "cccccccc-0000-0000-0000-000000000003",
+   "full_name": "Merin Sam",
+   "photo_url": null,
+   "created_at": "2026-11-28T08:06:27.289+00:00",
+   "father_name": "Sam Daniel",
+   "mother_name": "Lincy Sam",
+   "school_name": null,
+   "admission_no": "SS-2026-0010",
+   "full_name_ml": null,
+   "school_class": "Grade 3",
+   "guardian_phone": "9447000010"
+  }
+ ],
+ "registrations": [
+  {
+   "id": "e7a402ef-30fe-4003-b4ce-e749fc5c320b",
+   "dob": "2020-04-04",
+   "gender": "female",
+   "status": "pending",
+   "address": "Kottayam",
+   "baptised": true,
+   "full_name": "Christy Paul",
+   "student_id": null,
+   "father_name": "Paul V",
+   "mother_name": "Jessy Paul",
+   "review_note": null,
+   "reviewed_at": null,
+   "reviewed_by": null,
+   "school_name": "St. Mary's School",
+   "full_name_ml": "ക്രിസ്റ്റി പോൾ",
+   "school_class": "Grade 1",
+   "submitted_at": "2026-11-28T08:06:27.289+00:00",
+   "guardian_phone": "9447000011"
+  }
+ ],
+ "subjects": [
+  {
+   "id": "5b000000-0000-0000-0000-000000000001",
+   "name": "Old Testament",
+   "max_marks": 50,
+   "sort_order": 1
+  },
+  {
+   "id": "5b000000-0000-0000-0000-000000000002",
+   "name": "New Testament",
+   "max_marks": 50,
+   "sort_order": 2
+  },
+  {
+   "id": "5b000000-0000-0000-0000-000000000003",
+   "name": "Catechism",
+   "max_marks": 50,
+   "sort_order": 3
+  },
+  {
+   "id": "5b000000-0000-0000-0000-000000000004",
+   "name": "Memory Verse",
+   "max_marks": 25,
+   "sort_order": 4
+  }
+ ],
+ "exams": [
+  {
+   "id": "e0000000-0000-0000-0000-000000000001",
+   "name": "First Term",
+   "class_id": "cccccccc-0000-0000-0000-000000000001",
+   "exam_date": "2026-10-04",
+   "created_at": "2026-11-28T08:06:27.289+00:00",
+   "academic_year_id": "aaaaaaaa-0000-0000-0000-000000002026"
+  },
+  {
+   "id": "e0000000-0000-0000-0000-000000000002",
+   "name": "First Term",
+   "class_id": "cccccccc-0000-0000-0000-000000000002",
+   "exam_date": "2026-10-04",
+   "created_at": "2026-11-28T08:06:27.289+00:00",
+   "academic_year_id": "aaaaaaaa-0000-0000-0000-000000002026"
+  },
+  {
+   "id": "e0000000-0000-0000-0000-000000000003",
+   "name": "First Term",
+   "class_id": "cccccccc-0000-0000-0000-000000000003",
+   "exam_date": "2026-10-04",
+   "created_at": "2026-11-28T08:06:27.289+00:00",
+   "academic_year_id": "aaaaaaaa-0000-0000-0000-000000002026"
+  }
+ ],
+ "marks": [],
+ "attendance": [],
+ "activities": [],
+ "certificates": [],
+ "school_settings": [
+  {
+   "id": 1,
+   "address": "Kottayam, Kerala",
+   "logo_url": null,
+   "updated_at": "2026-11-28T08:06:27.154+00:00",
+   "school_name": "MGOSC Sunday School",
+   "signature_url": null,
+   "headmaster_name": "Headmaster (change me)",
+   "certificate_wording": {
+    "merit": "This certificate is awarded to {student_name} of {class} for securing Rank {rank} in {exam} during the academic year {year}.",
+    "custom": "",
+    "attendance": "This certificate is awarded to {student_name} of {class} in recognition of excellent attendance during the academic year {year}.",
+    "completion": "This is to certify that {student_name} has successfully completed {class} of the Sunday School during the academic year {year}.",
+    "memory_verse": "This certificate is awarded to {student_name} of {class} for outstanding achievement in Memory Verse recitation during the academic year {year}.",
+    "participation": "This certificate is awarded to {student_name} of {class} for participation in {exam} during the academic year {year}."
+   }
+  }
+ ],
+ "number_counters": [
+  {
+   "kind": "admission",
+   "year": 2026,
+   "last_value": 10
+  }
+ ]
+}

@@ -1,5 +1,5 @@
 /**
- * Every case of tests/db/{schema,phase2,phase3,phase4}.test.ts, run against TiDB.
+ * Every permission case of the original Postgres tests, run against TiDB.
  * As in those files, cases within a block build on each other.
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -102,8 +102,8 @@ describe("phase 2", () => {
     expect(await t1().select("registrations")).toEqual([]);
   });
   it("rate-limit table is not reachable by anon or teachers", async () => {
-    await expect(anon().select("registration_attempts")).rejects.toThrow(/permission denied/);
-    await expect(t1().insert("registration_attempts", { ip_hash: "x" })).rejects.toThrow(/permission denied/);
+    await expect(anon().select("number_counters")).rejects.toThrow(/permission denied/);
+    await expect(t1().insert("number_counters", { name: "receipt", year: 2026, last_value: 99 })).rejects.toThrow(/permission denied/);
   });
   it("approval is atomic and cannot happen twice", async () => {
     const id = await regId("Christy Paul");

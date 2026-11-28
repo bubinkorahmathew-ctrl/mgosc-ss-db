@@ -71,6 +71,13 @@
       "when": 1795691966634,
       "tag": "0009_seed_account_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "5",
+      "when": 1795853311915,
+      "tag": "0010_drop_old_auth_tables",
+      "breakpoints": true
     }
   ]
 }

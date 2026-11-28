@@ -1,6 +1,7 @@
 /**
- * A throwaway TiDB database per test file, loaded with the same fixture as the Postgres spec
- * (PGlite + supabase/migrations + seed, copied row by row, without any logins or passwords).
+ * A throwaway TiDB database per test file, built by the real migrations and loaded with the
+ * fixture in fixture.json (3 staff, 3 classes, 10 students...; no logins or passwords). The
+ * fixture was exported once from the original Postgres spec when Supabase was removed.
  *
  * It only ever drops the randomly named database that it created itself.
  */
@@ -20,9 +21,11 @@ import { createDrizzle, setTestDrizzle } from "@/db/client";
 import { translateError } from "@/lib/db/errors";
 import { COLUMNS, type TableName } from "@/lib/db/schema";
 import { toDb } from "@/lib/db/values";
-import { createTestDb, type TestDb } from "../db/harness";
+import FIXTURE from "./fixture.json";
+import FIXTURE_IDS from "./fixture-ids.json";
 
-export { IDS } from "../db/harness";
+/** Fixed ids of the fixture rows (staff, classes, students, exams, subjects). */
+export const IDS = FIXTURE_IDS;
 
 const root = path.resolve(__dirname, "..", "..");
 
@@ -42,13 +45,7 @@ function serverUrl(): URL {
   if (!url) throw new Error("Set DATABASE_URL (or .env.local) to run the TiDB tests.");
   return new URL(url);
 }
-const TABLES: TableName[] = [
-  "profiles", "academic_years", "classes", "class_teachers", "students", "registrations", "registration_attempts",
-  "subjects", "exams", "marks", "attendance", "activities", "certificates", "school_settings", "number_counters",
-];
-
-/** Tables that exist only on TiDB: the Postgres spec has nothing to compare them with. */
-export const TIDB_ONLY_TABLES: ReadonlySet<TableName> = new Set<TableName>(["prayer_units", "exam_attendance", "grade_scales", "toppers"]);
+const TABLES = Object.keys(FIXTURE) as (keyof typeof FIXTURE & TableName)[];
 
 /** A date n days before today (India time): teachers write attendance only 14 days back. */
 export const daysAgo = (n: number) => new Date(Date.parse(todayISO()) - n * 864e5).toISOString().slice(0, 10);
@@ -56,7 +53,7 @@ export const daysAgo = (n: number) => new Date(Date.parse(todayISO()) - n * 864e
 /** An active prayer unit in every test database, for new students and registrations. */
 export const PRAYER_UNIT = "70000000-0000-4000-8000-000000000001";
 
-/** Required on TiDB, absent from the spec: filled the way migration 20261125000000 fills old rows. */
+/** Columns added after the fixture was made: filled the way the migrations fill old rows. */
 function tidbOnly(table: TableName, j: Record<string, unknown>): Record<string, unknown> {
   if (table === "attendance") return { updated_at: new Date().toISOString() };
   if (table === "marks") return { is_absent: false };
@@ -72,10 +69,10 @@ function tidbOnly(table: TableName, j: Record<string, unknown>): Record<string, 
   };
 }
 
-async function copyFixture(pg: TestDb, to: Executor) {
+async function copyFixture(to: Executor) {
   await to.query("delete from school_settings"); // the migration's default row
   for (const table of TABLES) {
-    const { rows } = await pg.query<{ j: Record<string, unknown> }>(`select to_jsonb(t) as j from public.${table} t`);
+    const rows = (FIXTURE[table] as Record<string, unknown>[]).map((j) => ({ j }));
     if (!rows.length) continue;
     const names = Object.keys(COLUMNS[table]);
     await to.query(
@@ -88,10 +85,8 @@ async function copyFixture(pg: TestDb, to: Executor) {
   await to.query("insert into prayer_units (id, name) values (?, 'St. Thomas')", [PRAYER_UNIT]);
 }
 
-export async function createTiDbTest(extendFixture?: (pg: TestDb) => Promise<void>) {
-  const pg = await createTestDb();
-  await extendFixture?.(pg);
-
+/** `extend`: extra rows for one test file, written with the fixture (MySQL statements). */
+export async function createTiDbTest(extend?: (db: Executor) => Promise<void>) {
   const name = `smdb_test_${randomBytes(6).toString("hex")}`;
   const server = serverUrl();
   const at = (database: string) => Object.assign(new URL(server), { pathname: `/${database}` }).toString();
@@ -104,14 +99,14 @@ export async function createTiDbTest(extendFixture?: (pg: TestDb) => Promise<voi
     setTestDatabase(NO_DATABASE);
 setTestDrizzle(createDrizzle("mysql://no-test-database.invalid:4000/none"));
     await admin.query(`drop database if exists \`${name}\``);
-    await pg.close();
   };
 
   try {
     const setup = executor(connectTiDb(url));
     // the same Drizzle migrations that build the real database
     await migrate(drizzle({ client: connect({ url }) }), { migrationsFolder: path.join(root, "db", "migrations") });
-    await copyFixture(pg, setup);
+    await copyFixture(setup);
+    await extend?.(setup);
     // the spec's headmaster had every right: that is today's super admin
     await setup.query("update profiles set is_super = true where role = 'headmaster'");
   } catch (e) {
@@ -160,7 +155,7 @@ setTestDrizzle(createDrizzle("mysql://no-test-database.invalid:4000/none"));
       },
     };
   }
-  return { pg, database, sandbox, destroy, url, name, as: (userId: string | null) => createDb(database, userId) };
+  return { database, sandbox, destroy, url, name, as: (userId: string | null) => createDb(database, userId) };
 }
 
 export type TiDbTest = Awaited<ReturnType<typeof createTiDbTest>>;

@@ -4,7 +4,7 @@
  */
 import type {
   AcademicYearRow, ActivityRow, AttendanceRow, CertificateRow, ClassRow, ClassTeacherRow, ExamAttendanceRow, ExamRow, GradeScaleRow, MarkRow, TopperRow,
-  NumberCounterRow, PrayerUnitRow, ProfileRow, RegistrationAttemptRow, RegistrationRow, SchoolSettingsRow, StudentRow, SubjectRow,
+  NumberCounterRow, PrayerUnitRow, ProfileRow, RegistrationRow, SchoolSettingsRow, StudentRow, SubjectRow,
 } from "@/lib/db/types";
 
 export type Rows = {
@@ -14,7 +14,6 @@ export type Rows = {
   class_teachers: ClassTeacherRow;
   students: StudentRow;
   registrations: RegistrationRow;
-  registration_attempts: RegistrationAttemptRow;
   subjects: SubjectRow;
   exams: ExamRow;
   marks: MarkRow;
@@ -56,7 +55,6 @@ export const COLUMNS: { [T in TableName]: { readonly [C in keyof Rows[T]]-?: Kin
     id: "uuid", ...personal, status: ["pending", "approved", "rejected"], submitted_at: "time",
     reviewed_by: "uuid?", reviewed_at: "time?", review_note: "text?", student_id: "uuid?",
   },
-  registration_attempts: { id: "int", ip_hash: "text", created_at: "time" },
   subjects: { id: "uuid", name: "text", max_marks: "number", pass_percent: "number", sort_order: "int" },
   exams: {
     id: "uuid", name: "text", class_id: "uuid", academic_year_id: "uuid", exam_date: "date?", weight: "number", created_at: "time",
@@ -104,7 +102,7 @@ export const COLUMNS: { [T in TableName]: { readonly [C in keyof Rows[T]]-?: Kin
 
 export const PRIMARY_KEY: Record<TableName, readonly string[]> = {
   profiles: ["id"], academic_years: ["id"], classes: ["id"], class_teachers: ["class_id", "teacher_id"],
-  students: ["id"], registrations: ["id"], registration_attempts: ["id"], subjects: ["id"], exams: ["id"],
+  students: ["id"], registrations: ["id"], subjects: ["id"], exams: ["id"],
   marks: ["id"], attendance: ["id"], activities: ["id"], certificates: ["id"], school_settings: ["id"],
   number_counters: ["name", "year"], prayer_units: ["id"], exam_attendance: ["id"], grade_scales: ["id"], toppers: ["id"],
 };

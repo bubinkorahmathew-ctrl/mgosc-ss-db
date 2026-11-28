@@ -34,9 +34,6 @@ yarn-error.log*
 .env*
 !.env.example
 
-# supabase local
-supabase/.branches
-supabase/.temp
 
 # vercel
 .vercel
@@ -45,11 +42,6 @@ supabase/.temp
 *.tsbuildinfo
 next-env.d.ts
 
-# cloudflare (OpenNext / wrangler)
-.open-next
-.wrangler
-.dev.vars*
-!.dev.vars.example
 
 # TiDB Cloud credentials - never commit
 /tibcloud.txt

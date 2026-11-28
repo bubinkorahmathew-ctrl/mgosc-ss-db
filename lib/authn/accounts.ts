@@ -1,6 +1,6 @@
 import "server-only";
 /**
- * Teacher logins. Replaces the Supabase Auth admin API.
+ * Teacher logins (created, edited, deactivated and reset by admins).
  * Each function checks "active headmaster" itself, inside its own transaction, and can only
  * ever act on a teacher, never on a headmaster.
  */

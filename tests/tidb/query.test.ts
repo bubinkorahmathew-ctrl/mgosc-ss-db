@@ -9,16 +9,12 @@ import { createTiDbTest, IDS, PRAYER_UNIT, type Sandbox, type TiDbTest } from ".
 let t: TiDbTest;
 let s: Sandbox;
 beforeAll(async () => {
-  t = await createTiDbTest(async (pg) => {
-    await pg.exec(`
-      insert into marks (exam_id, student_id, subject_id, marks_obtained)
-        values ('${IDS.examC1}', '${IDS.studentC1}', '${IDS.subjectOT}', 20),
-               ('${IDS.examC2}', '${IDS.studentC2}', '${IDS.subjectOT}', 30);
-      insert into activities (class_id, type, title, activity_date) values ('${IDS.class1}', 'event', 'Picnic', '2026-11-01');
-      insert into activities (class_id, student_id, type, title, activity_date)
-        values ('${IDS.class1}', '${IDS.studentC1}', 'note', 'Note', '2026-11-02'),
-               ('${IDS.class2}', '${IDS.studentC2}', 'note', 'Other', '2026-11-03');
-    `);
+  t = await createTiDbTest(async (db) => {
+    await db.query("insert into marks (exam_id, student_id, subject_id, marks_obtained) values ?",
+      [[[IDS.examC1, IDS.studentC1, IDS.subjectOT, 20], [IDS.examC2, IDS.studentC2, IDS.subjectOT, 30]]]);
+    await db.query("insert into activities (class_id, type, title, activity_date) values (?, 'event', 'Picnic', '2026-11-01')", [IDS.class1]);
+    await db.query("insert into activities (class_id, student_id, type, title, activity_date) values ?",
+      [[[IDS.class1, IDS.studentC1, "note", "Note", "2026-11-02"], [IDS.class2, IDS.studentC2, "note", "Other", "2026-11-03"]]]);
   });
 });
 afterAll(async () => {

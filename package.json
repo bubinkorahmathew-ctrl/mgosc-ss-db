@@ -20,9 +20,7 @@
     "db:generate": "drizzle-kit generate",
     "db:migrate": "drizzle-kit migrate",
     "db:baseline": "tsx scripts/db-baseline.ts",
-    "postinstall": "patch-package",
-    "deploy": "opennextjs-cloudflare build && opennextjs-cloudflare deploy",
-    "preview": "opennextjs-cloudflare build && opennextjs-cloudflare preview"
+    "postinstall": "patch-package"
   },
   "dependencies": {
     "@base-ui/react": "^1.9.0",
@@ -52,8 +50,6 @@
     "zod": "^4.6.7"
   },
   "devDependencies": {
-    "@electric-sql/pglite": "^0.5.16",
-    "@opennextjs/cloudflare": "^1.20.18",
     "@tailwindcss/turbopack": "4.3.3",
     "@types/node": "^24.19.2",
     "@types/qrcode": "^1.5.6",
@@ -68,7 +64,6 @@
     "tailwindcss": "4.3.3",
     "tsx": "^4.23.15",
     "typescript": "^5",
-    "vitest": "^5.1.1",
-    "wrangler": "^4.165.0"
+    "vitest": "^5.1.1"
   }
 }

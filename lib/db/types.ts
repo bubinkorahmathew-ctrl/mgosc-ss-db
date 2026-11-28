@@ -37,7 +37,6 @@ export type RegistrationRow = PersonalFields & {
   id: string; status: RegistrationStatus; submitted_at: string; reviewed_by: string | null;
   reviewed_at: string | null; review_note: string | null; student_id: string | null;
 };
-export type RegistrationAttemptRow = { id: number; ip_hash: string; created_at: string };
 export type SubjectRow = { id: string; name: string; max_marks: number; pass_percent: number; sort_order: number };
 export type ExamRow = {
   id: string; name: string; class_id: string; academic_year_id: string; exam_date: string | null;

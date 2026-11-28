@@ -401,7 +401,7 @@ describe("teacher accounts", () => {
   });
 
   it("login tables are unreachable through the data client", async () => {
-    for (const table of ["users", "sessions", "sign_in_attempts", "login_attempts"]) {
+    for (const table of ["users", "login_attempts", "rate_limits"]) {
       await expect(t.as(IDS.headmaster).select(table as TableName)).rejects.toThrow(/unknown table/);
     }
   });
