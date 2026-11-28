@@ -17,6 +17,13 @@ const nextConfig: NextConfig = {
     ],
   },
   poweredByHeader: false,
+  // the Teachers and Admins pages became the Users page
+  async redirects() {
+    return [
+      { source: "/admin/teachers", destination: "/admin/users", permanent: false },
+      { source: "/admin/admins", destination: "/admin/users", permanent: false },
+    ];
+  },
   async headers() {
     return [
       {

@@ -48,7 +48,7 @@ const canSave = (report: ImportReport) => !report.fileErrors.length && !report.p
 
 export async function importStudents(formData: FormData): Promise<ActionResult<ImportReport>> {
   try {
-    const user = await assertRole("teacher", "headmaster");
+    const user = await assertRole("teacher", "admin");
     const { mode, target, sheet } = await upload(formData);
     let classId: string | null = null;
     if (target) {
@@ -83,7 +83,7 @@ export async function importStudents(formData: FormData): Promise<ActionResult<I
 
 export async function importMarks(formData: FormData): Promise<ActionResult<ImportReport>> {
   try {
-    const user = await assertRole("teacher", "headmaster");
+    const user = await assertRole("teacher", "admin");
     const { mode, target, sheet } = await upload(formData);
     const exam = await loadExam(user, uuid.parse(target));
     if (!exam.subjects.length) throw new SheetError("No subjects have been set up yet.");
@@ -102,7 +102,7 @@ export async function importMarks(formData: FormData): Promise<ActionResult<Impo
 
 export async function importAttendance(formData: FormData): Promise<ActionResult<ImportReport>> {
   try {
-    const user = await assertRole("teacher", "headmaster");
+    const user = await assertRole("teacher", "admin");
     const { mode, target, sheet } = await upload(formData);
     const cls = await loadClass(user, uuid.parse(target));
     const parsed = parseAttendance(sheet, { students: cls.students, today: todayISO() });

@@ -10,7 +10,7 @@ import { CertificateList } from "@/components/certificates/certificate-list";
 export const metadata: Metadata = { title: "Certificates" };
 
 export default async function AdminCertificatesPage({ searchParams }: PageProps<"/admin/certificates">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const sp = await searchParams;
   const classes = (await getClassOptions(user)).map((c) => ({ id: c.id, label: c.isCurrent ? c.label : `${c.label} (${c.yearName})` }));
   return (

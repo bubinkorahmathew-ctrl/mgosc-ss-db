@@ -15,4 +15,3 @@ export const SCHOOL_CLASSES = [
   ...Array.from({ length: 12 }, (_, i) => `Grade ${i + 1}`),
 ] as const;
 
-export type Role = "headmaster" | "teacher";

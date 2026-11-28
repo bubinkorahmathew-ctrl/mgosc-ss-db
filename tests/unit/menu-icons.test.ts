@@ -32,7 +32,7 @@ describe("menu icons", () => {
   it("reads saved choices leniently and applies them to the menu", () => {
     const style = readNavStyle({
       "/admin/students": { icon: "church", color: "purple" },
-      "/admin/teachers": { icon: "nope", color: "red" },
+      "/admin/users": { icon: "nope", color: "red" },
       "/elsewhere": { icon: "star", color: "red" },
     });
     expect(style).toEqual({ "/admin/students": { icon: "church", color: "purple" } });
@@ -40,7 +40,7 @@ describe("menu icons", () => {
     expect(readNavStyle("[]")).toEqual({});
     const nav = styleNav(ADMIN_NAV, style);
     expect(nav.find((n) => n.href === "/admin/students")).toMatchObject({ label: "Students", icon: "church", color: "purple" });
-    expect(nav.find((n) => n.href === "/admin/teachers")).toMatchObject({ icon: "teachers", color: "purple" });
+    expect(nav.find((n) => n.href === "/admin/users")).toMatchObject({ icon: "teachers", color: "purple" });
     expect(nav.map((n) => n.href)).toEqual(ADMIN_NAV.map((n) => n.href));
   });
 

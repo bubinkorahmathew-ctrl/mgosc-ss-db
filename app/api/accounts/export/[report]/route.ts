@@ -11,6 +11,7 @@ import { renderTableReport } from "@/lib/pdf/table-report";
 import { uuid } from "@/lib/validation/common";
 import { PAYMENT_MODE_LABELS, periodSchema } from "@/lib/validation/accounts";
 import { buildXlsx, xlsxResponse, type XlsxSheet } from "@/lib/xlsx";
+import { isAdmin } from "@/lib/permissions";
 
 /**
  * GET /api/accounts/export/{cash-book|income|expense|charity|event|students|teachers|voided|receipts|payments}
@@ -20,7 +21,7 @@ import { buildXlsx, xlsxResponse, type XlsxSheet } from "@/lib/xlsx";
 export async function GET(req: NextRequest, ctx: RouteContext<"/api/accounts/export/[report]">) {
   const user = await apiUser();
   if (user instanceof Response) return user;
-  if (user.profile.role !== "headmaster") return textResponse(403, "Not allowed.");
+  if (!isAdmin(user.profile.role)) return textResponse(403, "Not allowed.");
   const { report } = await ctx.params;
   const sp = Object.fromEntries(req.nextUrl.searchParams.entries());
   const pdf = sp.format === "pdf";

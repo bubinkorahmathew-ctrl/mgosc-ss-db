@@ -3,12 +3,9 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { Check, Minus, School } from "lucide-react";
 import { requireRole } from "@/lib/auth";
-import { listAdmins, teachersPage } from "@/lib/repo/accounts";
 import { RIGHTS, ROLES, type RightLevel } from "@/lib/roles";
-import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
-import { StatusBadge } from "@/components/status-badge";
 
 export const metadata: Metadata = { title: "User rights" };
 
@@ -18,20 +15,10 @@ function Level({ level }: { level: RightLevel }) {
   return <span className="inline-flex items-center gap-1 text-muted-foreground"><Minus className="size-4" /> No</span>;
 }
 
-/** Super admin only: who has which role, and what each role can do. Read-only. */
+/** Super admin only: what each role can do. Read-only. */
 export default async function RightsPage() {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   if (!user.superAdmin) redirect("/admin");
-  const [admins, { teachers, assignments, classes, emails }] = await Promise.all([listAdmins(user), teachersPage(user)]);
-  const classLabel = new Map(classes.map((c) => [c.id, c.label]));
-
-  const people = [
-    ...admins.map((a) => ({ id: a.id, name: a.full_name, email: a.email, active: a.active, role: a.superAdmin ? "Super admin" : "Admin", classes: "All" })),
-    ...teachers.map((t) => ({
-      id: t.id, name: t.full_name, email: emails.get(t.id) ?? "", active: t.active, role: "Teacher",
-      classes: assignments.filter((a) => a.teacher_id === t.id).map((a) => classLabel.get(a.class_id)).filter(Boolean).join(", ") || "No class this year",
-    })),
-  ];
 
   return (
     <>
@@ -71,37 +58,9 @@ export default async function RightsPage() {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Users ({people.length})</CardTitle>
-            <p className="text-sm text-muted-foreground">
-              Add or change accounts on the <Link href="/admin/admins" className="text-primary underline">Admins</Link> and{" "}
-              <Link href="/admin/teachers" className="text-primary underline">Teachers</Link> pages.
-            </p>
-          </CardHeader>
-          <CardContent>
-            <div className="overflow-x-auto rounded-lg border">
-              <table className="w-full text-sm">
-                <thead className="bg-muted/50">
-                  <tr>
-                    {["Name", "Email", "Role", "Status", "Classes"].map((h) => <th key={h} scope="col" className="px-3 py-2 text-left font-medium">{h}</th>)}
-                  </tr>
-                </thead>
-                <tbody className="divide-y">
-                  {people.map((p) => (
-                    <tr key={p.id}>
-                      <td className="px-3 py-2 font-medium">{p.name}</td>
-                      <td className="px-3 py-2 break-all text-muted-foreground">{p.email}</td>
-                      <td className="px-3 py-2 whitespace-nowrap"><Badge variant={p.role === "Teacher" ? "secondary" : "default"}>{p.role}</Badge></td>
-                      <td className="px-3 py-2">{p.active ? "Active" : <StatusBadge status="deactivated" />}</td>
-                      <td className="px-3 py-2">{p.classes}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </CardContent>
-        </Card>
+        <p className="text-sm text-muted-foreground">
+          Who has which role, designation and classes: see the <Link href="/admin/users" className="text-primary underline">Users</Link> page.
+        </p>
       </div>
     </>
   );

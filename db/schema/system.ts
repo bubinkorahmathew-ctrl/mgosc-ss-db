@@ -1,8 +1,8 @@
 /** Sign-in, rate limits and stored images. Never reached by the app's data access, only by auth and file code. */
 import { sql } from "drizzle-orm";
-import { char, check, index, int, mysqlEnum, mysqlTable, primaryKey, uniqueIndex } from "drizzle-orm/mysql-core";
+import { char, check, index, int, json, mysqlEnum, mysqlTable, primaryKey, uniqueIndex, varchar } from "drizzle-orm/mysql-core";
 import { createdAt, mediumblob, utc } from "./columns";
-import { users } from "./people";
+import { profiles, users } from "./people";
 
 /**
  * Failed sign-ins (and attempts in progress), keyed by HMACs of the email and of the device's
@@ -34,6 +34,19 @@ export const passwordResetTokens = mysqlTable("password_reset_tokens", {
 }, (t) => [
   uniqueIndex("password_reset_tokens_hash_key").on(t.tokenHash),
   index("password_reset_tokens_user_idx").on(t.userId, t.createdAt),
+]);
+
+/** Who changed whose role, admin access, activation, login or classes, and when (Users page). */
+export const auditLog = mysqlTable("audit_log", {
+  id: char("id", { length: 36 }).primaryKey(),
+  actorId: char("actor_id", { length: 36 }).references(() => profiles.id, { onDelete: "set null" }),
+  targetId: char("target_id", { length: 36 }).references(() => profiles.id, { onDelete: "set null" }),
+  action: varchar("action", { length: 40 }).notNull(),
+  details: json("details").notNull().$type<Record<string, unknown>>(),
+  createdAt: createdAt(),
+}, (t) => [
+  index("audit_log_target_idx").on(t.targetId, t.createdAt),
+  index("audit_log_created_idx").on(t.createdAt),
 ]);
 
 /**

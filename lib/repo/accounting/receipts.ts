@@ -68,7 +68,7 @@ export async function createReceipt(user: Viewer, input: z.output<typeof receipt
       classId = s.classId;
     } else if (input.received_from_type === "teacher") {
       const [t] = await tx.select({ name: profiles.fullName }).from(profiles)
-        .where(and(eq(profiles.id, input.teacher_id!), inArray(profiles.role, ["teacher", "headmaster"])));
+        .where(and(eq(profiles.id, input.teacher_id!), inArray(profiles.role, ["teacher", "admin", "super_admin"])));
       if (!t) throw new UserError("Choose the teacher from the list.");
       name = t.name;
     }
@@ -101,7 +101,7 @@ export async function voidReceipt(user: Viewer, id: string, reason: string) {
 
 /** Who can be entered on the grid for a class, and what was already received that day. */
 export async function charityGrid(user: Viewer, classId: string, date: string) {
-  requireRole(user, "headmaster", "teacher");
+  requireRole(user, "admin", "teacher");
   await assertTeacherOfClass(user, classId);
   const d = db();
   const [cls] = await d.select({ name: classes.name, section: classes.section }).from(classes).where(eq(classes.id, classId));
@@ -126,7 +126,7 @@ export async function charityGrid(user: Viewer, classId: string, date: string) {
 
 /** One receipt per non-empty amount, under "Charity collection", in one transaction. */
 export async function saveCharityGrid(user: Viewer, input: z.output<typeof charityGridSchema>) {
-  requireRole(user, "headmaster", "teacher");
+  requireRole(user, "admin", "teacher");
   await assertTeacherOfClass(user, input.class_id);
   if (!input.students.length && !input.teachers.length) throw new UserError("Enter at least one amount.");
   if (!isAdmin(user) && input.teachers.some((t) => t.id !== user.id)) throw new AuthError("You can enter only your own contribution.");
@@ -168,7 +168,7 @@ export type ReceiptFilters = {
 
 /** Receipts with filters, newest first. Admins see all; teachers only what they collected (charity). */
 export async function listReceipts(user: Viewer, f: ReceiptFilters = {}, limit = 500) {
-  requireRole(user, "headmaster", "teacher");
+  requireRole(user, "admin", "teacher");
   const where: SQL[] = [];
   if (!isAdmin(user)) where.push(eq(receipts.collectedBy, user.id));
   if (f.from) where.push(gte(receipts.receiptDate, f.from));
@@ -200,7 +200,7 @@ export async function listReceipts(user: Viewer, f: ReceiptFilters = {}, limit =
 
 /** One receipt for its PDF: admins any; teachers only one they collected. */
 export async function getReceipt(user: Viewer, id: string) {
-  requireRole(user, "headmaster", "teacher");
+  requireRole(user, "admin", "teacher");
   const [r] = await db().select({
     id: receipts.id, receiptNo: receipts.receiptNo, receiptDate: receipts.receiptDate, name: receipts.receivedFromName,
     type: receipts.receivedFromType, amount: receipts.amount, mode: receipts.paymentMode, referenceNo: receipts.referenceNo,
@@ -226,7 +226,7 @@ export async function payerOptions(user: Viewer) {
       .from(students).leftJoin(classes, eq(classes.id, students.classId))
       .where(eq(students.status, "active")).orderBy(students.fullName),
     d.select({ id: profiles.id, name: profiles.fullName }).from(profiles)
-      .where(and(eq(profiles.active, true), inArray(profiles.role, ["teacher", "headmaster"]))).orderBy(profiles.fullName),
+      .where(and(eq(profiles.active, true), inArray(profiles.role, ["teacher", "admin", "super_admin"]))).orderBy(profiles.fullName),
   ]);
   return {
     students: studentRows.map((s) => ({

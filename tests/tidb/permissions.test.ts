@@ -71,7 +71,7 @@ describe("schema", () => {
     expect(await t1().update("students", { class_id: IDS.class2 }, [["id", "eq", IDS.studentC1]])).toEqual([]);
   });
   it("teacher cannot change own role", async () => {
-    await expect(t1().update("profiles", { role: "headmaster" }, [["id", "eq", IDS.teacher1]])).rejects.toThrow(/name and phone/);
+    await expect(t1().update("profiles", { role: "admin" }, [["id", "eq", IDS.teacher1]])).rejects.toThrow(/name and phone/);
   });
   it("teacher can update own phone", async () => {
     expect(await t1().update("profiles", { phone: "9111111111" }, [["id", "eq", IDS.teacher1]])).toHaveLength(1);

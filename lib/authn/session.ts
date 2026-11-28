@@ -1,7 +1,7 @@
 import "server-only";
 import { getDb } from "@/db/client";
 import { changeOwnPassword, loginTarget, loadSessionUser, type Client, type SessionClaims, type SessionUser } from "./login";
-import { createResetLink, resetLinkIsValid, resetPasswordWithLink } from "./reset";
+import { createResetLink, INVITE_LINK_MINUTES, resetLinkIsValid, resetPasswordWithLink } from "./reset";
 
 /** The user behind an Auth.js session ({ user.id, authAt }), checked against the database. */
 export function sessionUser(session: unknown): Promise<SessionUser | null> {
@@ -18,5 +18,7 @@ export const changePasswordFor = (userId: string, current: string, next: string,
   changeOwnPassword(getDb(), userId, current, next, client);
 /** "Forgot password" (see reset.ts): a new link for this email, or null. */
 export const makeResetLink = (email: string) => createResetLink(getDb(), email);
+/** An invite for a new login (Users page): the same one-time link, valid 48 hours. */
+export const makeInviteLink = (email: string) => createResetLink(getDb(), email, new Date(), INVITE_LINK_MINUTES);
 export const checkResetLink = (token: string) => resetLinkIsValid(getDb(), token);
 export const redeemResetLink = (token: string, password: string) => resetPasswordWithLink(getDb(), token, password);

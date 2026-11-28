@@ -12,7 +12,7 @@ import { AccountsTabs, Money, PeriodForm, periodFrom, StatusPill } from "@/compo
 export const metadata: Metadata = { title: "Accounting" };
 
 export default async function AccountsHome({ searchParams }: PageProps<"/admin/accounts">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const { from, to } = periodFrom(await searchParams, "year");
   const today = todayISO();
   const monthStart = `${today.slice(0, 7)}-01`;

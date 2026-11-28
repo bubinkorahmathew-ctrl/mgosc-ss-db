@@ -9,7 +9,7 @@ import { IssuePage } from "@/components/certificates/issue-page";
 export const metadata: Metadata = { title: "Issue certificates" };
 
 export default async function AdminIssuePage({ searchParams }: PageProps<"/admin/certificates/new">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const sp = await searchParams;
   const classes = (await getClassOptions(user)).map((c) => ({
     id: c.id, yearName: c.yearName, label: c.isCurrent ? c.label : `${c.label} (${c.yearName})`,

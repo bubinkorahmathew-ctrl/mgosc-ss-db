@@ -34,7 +34,7 @@ export async function loadFacts(tx: Executor, table: TableName, rows: Row[]): Pr
 
 /** BEFORE INSERT, ahead of the permission check: values the caller never gets to choose. */
 export function forceInsertValues(table: TableName, row: Row, actor: Actor, facts: Facts, now: Date): void {
-  if (!actor.headmaster) {
+  if (!actor.admin) {
     // a teacher can only ever record work as themselves
     if (table === "marks") row.entered_by = actor.id;
     if (table === "attendance" || table === "exam_attendance") row.marked_by = actor.id;
@@ -75,15 +75,15 @@ export function applyUpdateRules(table: TableName, before: Row[], patch: Row, ac
     throw notAllowed(table === "profiles" ? "you can only change your name and phone" : "ids cannot be changed");
   }
 
-  if (table === "profiles" && actor.headmaster && !actor.superAdmin) {
-    if (changes("role")) throw notAllowed("only a super admin can change roles");
+  if (table === "profiles" && actor.admin && !actor.superAdmin) {
+    if (["role", "admin_access_until"].some(changes)) throw notAllowed("only a super admin can change roles");
   }
-  if (table === "profiles" && !actor.headmaster) { // trg_guard_profile
-    if (["role", "active", "created_at"].some(changes)) throw notAllowed("you can only change your name and phone");
+  if (table === "profiles" && !actor.admin) { // trg_guard_profile
+    if (["role", "active", "created_at", "designation", "admin_access_until"].some(changes)) throw notAllowed("you can only change your name and phone");
   }
 
-  if (table === "students" && !actor.headmaster && changes("class_id")) { // trg_guard_student_class
-    throw notAllowed("only the headmaster can change a student's class");
+  if (table === "students" && !actor.admin && changes("class_id")) { // trg_guard_student_class
+    throw notAllowed("only an admin can change a student's class");
   }
 
   if (table === "certificates") {
@@ -98,7 +98,7 @@ export function applyUpdateRules(table: TableName, before: Row[], patch: Row, ac
     if ("revoked" in patch && changes("revoked")) out.revoked_at = patch.revoked ? now : null;
   }
 
-  if (!actor.headmaster) {
+  if (!actor.admin) {
     if (table === "marks") out.entered_by = actor.id;
     if (table === "attendance" || table === "exam_attendance") out.marked_by = actor.id;
     if (table === "activities") delete out.created_by;
@@ -274,7 +274,7 @@ function checkLength(row: Row, column: string, min: number, max: number) {
 
 /** Admission numbers, and teachers add to current classes only. Runs in the insert's transaction. */
 export async function completeStudents(tx: Executor, rows: Row[], actor: Actor, now: Date): Promise<void> {
-  if (!actor.headmaster) {
+  if (!actor.admin) {
     const classes = ids(rows, "class_id");
     const current = await tx.query(
       `select c.id from classes c join academic_years y on y.id = c.academic_year_id

@@ -10,7 +10,6 @@ import { beginLoginAttempt, LOGIN_LIMITS } from "@/lib/authn/attempts";
 import {
   createTeacherAccount, listTeacherEmails, resetTeacherAccountPassword, setTeacherAccountActive, updateTeacherAccount,
 } from "@/lib/authn/accounts";
-import { createAdminAccount, resetAdminAccountPassword, setStaffRole } from "@/lib/authn/admins";
 import { createFirstHeadmaster, resetHeadmasterPassword } from "@/lib/authn/headmaster";
 import { changeOwnPassword, checkLogin, type Client, loadSessionUser, loginTarget, SESSION_DAYS, type SessionClaims } from "@/lib/authn/login";
 import { hashPassword } from "@/lib/authn/password";
@@ -61,12 +60,12 @@ async function settledTeacher() {
 describe("sign in", () => {
   it("returns the role, and the sign-in resolves to the profile", async () => {
     const result = await login(HEAD.email, HEAD.password);
-    expect(result).toMatchObject({ ok: true, user: { id: IDS.headmaster, role: "headmaster", mustChangePassword: false } });
+    expect(result).toMatchObject({ ok: true, user: { id: IDS.headmaster, role: "super_admin", mustChangePassword: false } });
     if (!result.ok) return;
     expect(await user({ id: result.user.id, authAt: result.user.authAt })).toMatchObject({
-      id: IDS.headmaster, email: HEAD.email, mustChangePassword: false, profile: { role: "headmaster", active: true },
+      id: IDS.headmaster, email: HEAD.email, mustChangePassword: false, profile: { role: "super_admin", active: true },
     });
-    expect(await loginTarget(db, HEAD.email.toUpperCase())).toEqual({ role: "headmaster", mustChangePassword: false });
+    expect(await loginTarget(db, HEAD.email.toUpperCase())).toEqual({ role: "super_admin", mustChangePassword: false });
   });
 
   it("an unknown email and a wrong password look identical", async () => {
@@ -248,20 +247,6 @@ describe("temporary passwords (forced change)", () => {
     expect((await login(teacher.email, teacher.password)).ok).toBe(false);
   });
 
-  it("new admins get one too, and so does every reset", async () => {
-    const email = `${randomUUID()}@test.invalid`;
-    const temp = await createAdminAccount(t.database, IDS.headmaster, { email, full_name: "New Admin" });
-    expect(temp.length).toBeGreaterThanOrEqual(10);
-    expect(await login(email, temp)).toMatchObject({ ok: true, user: { role: "headmaster", mustChangePassword: true } });
-
-    const [{ id }] = await t.database.query<{ id: string }>("select id from users where email = ?", [email]);
-    await changeOwnPassword(db, id, temp, "admin-own-password", device());
-    const claims = await claimsFor(email, "admin-own-password");
-    const reset = await resetAdminAccountPassword(t.database, IDS.headmaster, id);
-    expect(await user(claims)).toBeNull();
-    expect(await login(email, reset)).toMatchObject({ ok: true, user: { mustChangePassword: true } });
-  });
-
   it("the temporary password is shown once and only its hash is stored", async () => {
     const teacher = await newTeacher();
     const [row] = await t.database.query<{ h: string; m: number }>("select password_hash h, must_change_password m from users where id = ?", [teacher.id]);
@@ -369,35 +354,12 @@ describe("teacher accounts", () => {
     expect((await listTeacherEmails(t.database, IDS.headmaster)).size).toBeGreaterThan(0);
   });
 
-  it("the teacher functions can't touch a headmaster", async () => {
+  it("the teacher functions can't touch an admin", async () => {
     const id = IDS.headmaster;
     await expect(resetTeacherAccountPassword(t.database, id, id)).rejects.toThrow(/not a teacher/);
     await expect(setTeacherAccountActive(t.database, id, id, false)).rejects.toThrow(/not a teacher/);
     await expect(updateTeacherAccount(t.database, id, id, { full_name: "X", phone: null, class_ids: [] }))
       .rejects.toThrow(/not a teacher/);
-  });
-
-  it("the super admin can make a teacher an admin and back: same login, classes kept, effective at once", async () => {
-    const teacher = await settledTeacher();
-    const claims = await claimsFor(teacher.email, teacher.password);
-    await setStaffRole(t.database, IDS.headmaster, teacher.id, "headmaster");
-    expect((await user(claims))?.profile.role).toBe("headmaster");     // the same sign-in, next request
-    expect((await login(teacher.email, teacher.password)).ok).toBe(true);
-    await setStaffRole(t.database, IDS.headmaster, teacher.id, "teacher");
-    expect((await user(claims))?.profile.role).toBe("teacher");
-    expect(await t.database.query("select 1 from class_teachers where teacher_id = ?", [teacher.id])).toHaveLength(1);
-  });
-
-  it("only the super admin changes roles; never the super admin, nor their own, nor the wrong way", async () => {
-    const teacher = await settledTeacher();
-    const email = `${randomUUID()}@test.invalid`;
-    await createAdminAccount(t.database, IDS.headmaster, { email, full_name: "Plain Admin" });
-    const [{ id: admin }] = await t.database.query<{ id: string }>("select id from users where email = ?", [email]);
-    await expect(setStaffRole(t.database, admin, teacher.id, "headmaster")).rejects.toThrow(/not allowed/);
-    await expect(setStaffRole(t.database, IDS.teacher1, teacher.id, "headmaster")).rejects.toThrow(/not allowed/);
-    await expect(setStaffRole(t.database, IDS.headmaster, IDS.headmaster, "teacher")).rejects.toThrow(/own role/);
-    await expect(setStaffRole(t.database, IDS.headmaster, teacher.id, "teacher")).rejects.toThrow(/not an admin/);
-    await expect(setStaffRole(t.database, IDS.headmaster, admin, "headmaster")).rejects.toThrow(/not a teacher/);
   });
 
   it("login tables are unreachable through the data client", async () => {
@@ -424,13 +386,13 @@ describe("headmaster seed (npm run super-admin)", () => {
   });
 
   it("creates exactly one, even when run twice at once", async () => {
-    await t.database.query("delete from profiles where role = 'headmaster'");
+    await t.database.query("delete from profiles where role = 'super_admin'");
     const run = (n: number) => createFirstHeadmaster(db,
       { email: `first${n}@test.invalid`, full_name: "First", password: "first-headmaster-pass" });
     const out = await Promise.allSettled([run(1), run(2)]);
     expect(out.filter((r) => r.status === "fulfilled")).toHaveLength(1);
-    expect(await t.database.query("select id from profiles where role = 'headmaster'")).toHaveLength(1);
-    const [made] = await t.database.query<{ email: string }>("select u.email from users u join profiles p on p.id = u.id where p.role = 'headmaster'");
+    expect(await t.database.query("select id from profiles where role = 'super_admin'")).toHaveLength(1);
+    const [made] = await t.database.query<{ email: string }>("select u.email from users u join profiles p on p.id = u.id where p.role = 'super_admin'");
     expect((await login(made.email, "first-headmaster-pass")).ok).toBe(true);
   });
 });

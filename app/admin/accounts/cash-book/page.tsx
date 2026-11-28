@@ -14,7 +14,7 @@ import { AccountsTabs, Money, PeriodForm, periodFrom } from "@/components/accoun
 export const metadata: Metadata = { title: "Cash book" };
 
 export default async function CashBookPage({ searchParams }: PageProps<"/admin/accounts/cash-book">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const sp = await searchParams;
   const { from, to } = periodFrom(sp);
   const book: Book = sp.book === "cash" || sp.book === "bank" ? sp.book : "all";

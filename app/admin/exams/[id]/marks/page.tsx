@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Enter marks" };
 export default async function AdminMarksPage({ params }: PageProps<"/admin/exams/[id]/marks">) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const exam = await examWithClass(user, id);
   if (!exam) notFound();
 

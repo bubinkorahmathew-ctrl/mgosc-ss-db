@@ -16,7 +16,7 @@ function revalidateClasses() {
 
 export async function saveAcademicYear(input: unknown): Promise<ActionResult<{ id: string }>> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     const id = await academics.saveAcademicYear(user, academicYearSchema.parse(input));
     revalidateClasses();
     return { ok: true, data: { id }, message: "Academic year saved." };
@@ -27,7 +27,7 @@ export async function saveAcademicYear(input: unknown): Promise<ActionResult<{ i
 
 export async function setCurrentAcademicYear(yearId: unknown): Promise<ActionResult> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     await academics.setCurrentAcademicYear(user, uuid.parse(yearId));
     revalidateClasses();
     return { ok: true, message: "Current academic year changed." };
@@ -38,7 +38,7 @@ export async function setCurrentAcademicYear(yearId: unknown): Promise<ActionRes
 
 export async function saveClass(input: unknown): Promise<ActionResult<{ id: string }>> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     const data = classSchema.parse(input);
     const id = await academics.saveClass(user, data);
     revalidateClasses();
@@ -50,7 +50,7 @@ export async function saveClass(input: unknown): Promise<ActionResult<{ id: stri
 
 export async function deleteClass(classId: unknown): Promise<ActionResult> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     await academics.deleteClass(user, uuid.parse(classId));
     revalidateClasses();
     return { ok: true, message: "Class deleted." };

@@ -14,7 +14,7 @@ let s: Sandbox;
 beforeAll(async () => {
   t = await createTiDbTest();
   await t.database.query(
-    "insert into profiles (id, full_name, role) values (?, 'Admin One', 'headmaster'), (?, 'Admin Two', 'headmaster')",
+    "insert into profiles (id, full_name, role) values (?, 'Admin One', 'admin'), (?, 'Admin Two', 'admin')",
     [ADMIN, OTHER_ADMIN]);
 });
 afterAll(async () => {
@@ -141,11 +141,12 @@ describe("admin", () => {
     expect(await admin().delete("profiles", byId(OTHER_ADMIN))).toEqual([]);
   });
   it("cannot create admins or promote teachers", async () => {
-    await expect(admin().insert("profiles", { id: randomUUID(), full_name: "X", role: "headmaster" })).rejects.toThrow(/row-level security/);
-    await expect(admin().update("profiles", { role: "headmaster" }, byId(IDS.teacher1))).rejects.toThrow(/super admin/);
+    await expect(admin().insert("profiles", { id: randomUUID(), full_name: "X", role: "admin" })).rejects.toThrow(/row-level security/);
+    await expect(admin().update("profiles", { role: "admin" }, byId(IDS.teacher1))).rejects.toThrow(/super admin/);
   });
-  it("cannot make itself super", async () => {
-    const patch = { is_super: true } as unknown as Partial<Rows["profiles"]>;
+  it("cannot make itself super, nor extend its admin access", async () => {
+    await expect(admin().update("profiles", { role: "super_admin" }, byId(ADMIN))).rejects.toThrow(/super admin/);
+    const patch = { admin_access_until: null } as unknown as Partial<Rows["profiles"]>;
     await expect(admin().update("profiles", patch, byId(ADMIN))).rejects.toThrow(/unknown column/);
     await expect(s.as(IDS.headmaster).update("profiles", patch, byId(ADMIN))).rejects.toThrow(/unknown column/);
   });

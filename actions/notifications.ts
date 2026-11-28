@@ -9,7 +9,7 @@ import { toActionError, type ActionResult } from "@/lib/action-result";
 /** The signed-in person's own choice: notification emails on or off. */
 export async function setMyEmailNotifications(input: unknown): Promise<ActionResult> {
   try {
-    const user = await assertRole("headmaster", "teacher");
+    const user = await assertRole("admin", "teacher");
     const { on } = z.object({ on: z.boolean() }).parse(input);
     await setEmailNotifications(user, on);
     revalidatePath("/admin/account");

@@ -39,7 +39,7 @@ const PRAYER_UNIT_PAGES = ["/admin/settings", "/register", "/admin/students", "/
 /** Add a prayer unit, or rename / switch one on or off. "Not assigned" is fixed. */
 export async function savePrayerUnit(input: unknown): Promise<ActionResult> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     const data = prayerUnitSchema.parse(input);
     await settings.savePrayerUnit(user, data);
     for (const path of PRAYER_UNIT_PAGES) revalidatePath(path);
@@ -52,7 +52,7 @@ export async function savePrayerUnit(input: unknown): Promise<ActionResult> {
 /** Only a unit no student or registration uses can be deleted; otherwise switch it off. */
 export async function deletePrayerUnit(input: unknown): Promise<ActionResult> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     await settings.deletePrayerUnit(user, deletePrayerUnitSchema.parse(input).id);
     for (const path of PRAYER_UNIT_PAGES) revalidatePath(path);
     return { ok: true, message: "Prayer unit deleted." };

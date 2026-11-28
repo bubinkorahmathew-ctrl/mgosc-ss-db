@@ -15,7 +15,7 @@ import { CreateExamDialog, DeleteExamButton, DeleteSubjectButton, EditExamDialog
 export const metadata: Metadata = { title: "Subjects & Exams" };
 
 export default async function ExamsPage({ searchParams }: PageProps<"/admin/exams">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const sp = await searchParams;
   const years = await getAcademicYears(user);
   const year = years.find((y) => y.id === sp.year) ?? years.find((y) => y.is_current) ?? years[0];

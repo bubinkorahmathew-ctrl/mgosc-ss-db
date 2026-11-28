@@ -12,7 +12,7 @@ export const metadata: Metadata = { title: "Edit student" };
 export default async function EditStudentPage({ params }: PageProps<"/admin/students/[id]/edit">) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const [s, classes] = await Promise.all([getStudentForEdit(user, id), getClassOptions(user)]);
   if (!s) notFound();
   const prayerUnits = await prayerUnitOptions(user, s.prayer_unit_id);

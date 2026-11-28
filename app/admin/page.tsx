@@ -13,7 +13,7 @@ export const metadata: Metadata = { title: "Dashboard" };
 const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`;
 
 export default async function AdminDashboard() {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const today = todayISO();
   const [style, d] = await Promise.all([getNavStyle(user), adminDashboard(user, today)]);
   const { pending, students, classes, teachers, exams, attendance: att } = d;
@@ -22,7 +22,7 @@ export default async function AdminDashboard() {
     "/admin/registrations": { sub: pending ? `${pending} waiting` : "None waiting", badge: pending },
     "/admin/students": { sub: `${students} active` },
     "/admin/classes": { sub: `${plural(classes, "class", "classes")} this year` },
-    "/admin/teachers": { sub: `${teachers} active` },
+    "/admin/users": { sub: `${teachers} active teachers` },
     "/admin/exams": { sub: plural(exams, "exam") },
     "/admin/reports": { sub: marked ? `Today: ${att.present + att.late}/${marked} present` : "No attendance today" },
   };

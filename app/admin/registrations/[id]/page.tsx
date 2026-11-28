@@ -16,7 +16,7 @@ export const metadata: Metadata = { title: "Registration" };
 export default async function RegistrationDetail({ params }: PageProps<"/admin/registrations/[id]">) {
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const [r, classes] = await Promise.all([getRegistration(user, id), getClassOptions(user, { currentOnly: true })]);
   if (!r) notFound();
 

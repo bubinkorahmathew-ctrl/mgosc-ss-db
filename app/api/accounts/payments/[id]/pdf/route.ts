@@ -4,12 +4,13 @@ import { getPayment } from "@/lib/repo/accounting/payments";
 import { getCurrency } from "@/lib/repo/accounting/shared";
 import { renderVoucher } from "@/lib/pdf/accounts";
 import { uuid } from "@/lib/validation/common";
+import { isAdmin } from "@/lib/permissions";
 
 /** GET /api/accounts/payments/<id>/pdf[?download=1]: the payment voucher. Admins only. */
 export async function GET(req: NextRequest, ctx: RouteContext<"/api/accounts/payments/[id]/pdf">) {
   const user = await apiUser();
   if (user instanceof Response) return user;
-  if (user.profile.role !== "headmaster") return textResponse(403, "Not allowed.");
+  if (!isAdmin(user.profile.role)) return textResponse(403, "Not allowed.");
   const id = uuid.safeParse((await ctx.params).id);
   if (!id.success) return textResponse(400, "Invalid link.");
   const p = await getPayment(user, id.data);

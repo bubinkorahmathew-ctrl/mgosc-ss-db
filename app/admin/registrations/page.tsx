@@ -14,7 +14,7 @@ const TABS = ["pending", "approved", "rejected"] as const;
 type Tab = (typeof TABS)[number];
 
 export default async function RegistrationsPage({ searchParams }: PageProps<"/admin/registrations">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const sp = await searchParams;
   const status: Tab = TABS.includes(sp.status as Tab) ? (sp.status as Tab) : "pending";
   const rows = await listRegistrations(user, status);

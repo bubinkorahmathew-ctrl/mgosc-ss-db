@@ -6,7 +6,7 @@ import type { academicYearSchema, classSchema } from "@/lib/validation/staff";
 import type { createExamSchema, subjectSchema, updateExamSchema } from "@/lib/validation/academics";
 import { queryAs, requireRole, type Viewer } from "./access";
 
-const admin = (user: Viewer) => requireRole(user, "headmaster");
+const admin = (user: Viewer) => requireRole(user, "admin");
 
 // ---------------------------------------------------------------------------
 // Academic years and classes
@@ -36,9 +36,9 @@ export async function saveClass(user: Viewer, input: z.output<typeof classSchema
   const { id, teacher_ids, ...data } = input;
   const dbc = queryAs(user);
 
-  // teachers must be existing, active teacher profiles
+  // teachers must be existing, active teacher (or admin) profiles
   if (teacher_ids.length) {
-    const { data: t, error } = await dbc.from("profiles").select("id").in("id", teacher_ids).eq("role", "teacher").eq("active", true);
+    const { data: t, error } = await dbc.from("profiles").select("id").in("id", teacher_ids).in("role", ["teacher", "admin"]).eq("active", true);
     if (error) throw error;
     if ((t ?? []).length !== new Set(teacher_ids).size) throw new UserError("One of the selected teachers is not available.");
   }
@@ -89,10 +89,10 @@ export async function classesPage(user: Viewer, yearId: string | undefined) {
   const dbc = queryAs(user);
   const [{ data: classes }, { data: teachers }, { data: students }] = await Promise.all([
     yearId
-      ? dbc.from("classes").select("id, name, section, academic_year_id, class_teachers(teacher_id, profiles(full_name))")
+      ? dbc.from("classes").select("id, name, section, academic_year_id, class_teachers(teacher_id, profiles(full_name, designation))")
           .eq("academic_year_id", yearId).order("name")
       : Promise.resolve({ data: [] as never[] }),
-    dbc.from("profiles").select("id, full_name").eq("role", "teacher").eq("active", true).order("full_name"),
+    dbc.from("profiles").select("id, full_name, designation").in("role", ["teacher", "admin"]).eq("active", true).order("full_name"),
     dbc.from("students").select("class_id").eq("status", "active"),
   ]);
   const counts = new Map<string, number>();

@@ -19,6 +19,7 @@
  * edit their profile.
  */
 import { TEACHER_ATTENDANCE_DAYS } from "@/lib/config";
+import { getEffectiveRole, isAdmin, type Role } from "@/lib/permissions";
 import type { Executor } from "./connection";
 import { todayIST } from "./time";
 import type { TableName } from "./schema";
@@ -35,12 +36,15 @@ export const INTERNAL_TABLES: ReadonlySet<TableName> = new Set<TableName>(["numb
 // Reading: a single statement, so role, active flag and assignments are always current
 // ---------------------------------------------------------------------------------------------
 
-const IS_HEADMASTER = "exists (select 1 from profiles me where me.id = ? and me.active and me.role = 'headmaster')";
+/** An active admin or super admin; an admin whose admin_access_until has passed is a teacher (lib/permissions getEffectiveRole). */
+export const ADMIN_NOW_SQL =
+  "(me.role = 'super_admin' or (me.role = 'admin' and (me.admin_access_until is null or me.admin_access_until > utc_timestamp(3))))";
+const IS_ADMIN = `exists (select 1 from profiles me where me.id = ? and me.active and ${ADMIN_NOW_SQL})`;
 const IS_ACTIVE = "exists (select 1 from profiles me where me.id = ? and me.active)";
 const MY_CLASSES =
   "select mine.class_id from class_teachers mine join profiles me on me.id = mine.teacher_id where mine.teacher_id = ? and me.active";
 
-/** Extra rows visible to a non-headmaster. Every ? is the caller's id. `t` is the table being read. */
+/** Extra rows visible to a non-admin. Every ? is the caller's id. `t` is the table being read. */
 const VISIBLE: Partial<Record<TableName, string>> = {
   profiles: `t.id = ? or t.id in (select co.teacher_id from class_teachers co where co.class_id in (${MY_CLASSES}))`,
   academic_years: IS_ACTIVE,
@@ -57,7 +61,7 @@ const VISIBLE: Partial<Record<TableName, string>> = {
   attendance: `t.class_id in (${MY_CLASSES})`,
   activities: `t.class_id in (${MY_CLASSES})`,
   certificates: `t.class_id in (${MY_CLASSES}) or t.student_id in (select s.id from students s where s.class_id in (${MY_CLASSES}))`,
-  // registrations: headmaster only
+  // registrations: admins only
 };
 
 /** Readable by anyone, signed in or not: the public registration form lists them. */
@@ -67,7 +71,7 @@ export function readable(table: TableName, userId: string | null): Sql {
   if (PUBLIC_TABLES.has(table)) return ALL;
   if (!userId || INTERNAL_TABLES.has(table)) return NONE;
   const extra = VISIBLE[table];
-  const sql = extra ? `(${IS_HEADMASTER} or (${extra}))` : IS_HEADMASTER;
+  const sql = extra ? `(${IS_ADMIN} or (${extra}))` : IS_ADMIN;
   return { sql, params: Array<string>(sql.split("?").length - 1).fill(userId) };
 }
 
@@ -77,8 +81,8 @@ export function readable(table: TableName, userId: string | null): Sql {
 
 export type Actor = {
   id: string | null;
-  /** admin or super admin */
-  headmaster: boolean;
+  /** admin or super admin (effective role: expired admin access counts as teacher) */
+  admin: boolean;
   superAdmin: boolean;
   active: boolean;
   classes: ReadonlySet<string>;
@@ -89,17 +93,17 @@ export type Actor = {
  * assignment that was removed before it started.
  */
 export async function lockActor(tx: Executor, userId: string | null): Promise<Actor> {
-  const nobody: Actor = { id: null, headmaster: false, superAdmin: false, active: false, classes: new Set() };
+  const nobody: Actor = { id: null, admin: false, superAdmin: false, active: false, classes: new Set() };
   if (!userId) return nobody;
-  const [profile] = await tx.query<{ role: string; active: number; is_super: number }>(
-    "select role, active, is_super from profiles where id = ? for update", [userId]);
+  const [profile] = await tx.query<{ role: Role; active: number; admin_access_until: Date | null }>(
+    "select role, active, admin_access_until from profiles where id = ? for update", [userId]);
   if (!profile?.active) return nobody;
   const assigned = await tx.query<{ class_id: string }>(
     "select class_id from class_teachers where teacher_id = ? for update", [userId]);
   return {
     id: userId,
-    headmaster: profile.role === "headmaster",
-    superAdmin: profile.role === "headmaster" && Boolean(profile.is_super),
+    admin: isAdmin(getEffectiveRole(profile)),
+    superAdmin: profile.role === "super_admin",
     active: true,
     classes: new Set(assigned.map((r) => r.class_id)),
   };
@@ -125,7 +129,7 @@ export function canWrite(op: "insert" | "update", table: TableName, row: Row, ac
   if (op === "insert" && table === "registrations") return true;
   if (!actor.active) return false;
   if (actor.superAdmin) return true;
-  if (actor.headmaster) {
+  if (actor.admin) {
     if (table === "school_settings") return false;
     // an admin manages teachers and their own profile, and creates no logins by hand
     if (table === "profiles") return op === "update" && (row.role === "teacher" || row.id === actor.id);
@@ -155,7 +159,7 @@ export function canWrite(op: "insert" | "update", table: TableName, row: Row, ac
 export function targetable(op: "update" | "delete", table: TableName, actor: Actor): Sql {
   if (!actor.active || INTERNAL_TABLES.has(table)) return NONE;
   if (actor.superAdmin) return ALL;
-  if (actor.headmaster) {
+  if (actor.admin) {
     if (table === "school_settings") return NONE;
     // deleting a student also deletes their marks, attendance and certificates: super admin only
     if (table === "students" && op === "delete") return NONE;

@@ -21,7 +21,7 @@ import { VoidButton } from "@/components/accounts/void-button";
 export const metadata: Metadata = { title: "Voucher" };
 
 export default async function PaymentPage({ params }: PageProps<"/admin/accounts/payments/[id]">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const [p, currency, categories, events] = await Promise.all([

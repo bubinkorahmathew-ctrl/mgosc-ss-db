@@ -26,7 +26,7 @@ export function createFunctions(database: Database, uid: string | null) {
       if (!Number.isSafeInteger(year) || year < 1900 || year > 9999) throw invalid("invalid year");
       return database.transaction(async (tx) => {
         const actor = await lockActor(tx, uid);
-        if (!actor.headmaster) throw notAllowed();
+        if (!actor.admin) throw notAllowed();
         return formatNumber(kind, year, await reserveNumbers(tx, kind, year, 1));
       });
     },
@@ -35,7 +35,7 @@ export function createFunctions(database: Database, uid: string | null) {
       const id = toId(yearId);
       await database.transaction(async (tx) => {
         const actor = await lockActor(tx, uid);
-        if (!actor.headmaster) throw notAllowed();
+        if (!actor.admin) throw notAllowed();
         const years = await tx.query<{ id: string }>("select id from academic_years order by id for update");
         if (!years.some((y) => y.id === id)) throw new DbError("academic year not found", "P0001");
         await tx.query("update academic_years set is_current = false where is_current and id <> ?", [id]);
@@ -49,7 +49,7 @@ export function createFunctions(database: Database, uid: string | null) {
       const clsId = toId(classId);
       return database.transaction(async (tx) => {
         const actor = await lockActor(tx, uid);
-        if (!actor.headmaster) throw notAllowed();
+        if (!actor.admin) throw notAllowed();
         const [reg] = await tx.query<Row>("select * from registrations where id = ? for update", [regId]);
         if (!reg) throw new DbError("registration not found", "P0001");
         if (reg.status !== "pending") throw new DbError("registration already reviewed", "P0001");
@@ -76,7 +76,7 @@ export function createFunctions(database: Database, uid: string | null) {
       if (problems.length) throw violates(problems[0]);
       await database.transaction(async (tx) => {
         const actor = await lockActor(tx, uid);
-        if (!actor.headmaster) throw notAllowed();
+        if (!actor.admin) throw notAllowed();
         await tx.query("delete from grade_scales");
         await tx.query(
           "insert into grade_scales (id, min_percent, max_percent, grade, grade_point, remark, is_pass) values ?",
@@ -97,7 +97,7 @@ export function createFunctions(database: Database, uid: string | null) {
       if (scope.period_end < scope.period_start) throw violates("period_end must not be before period_start");
       return database.transaction(async (tx) => {
         const actor = await lockActor(tx, uid);
-        if (!actor.headmaster) throw notAllowed();
+        if (!actor.admin) throw notAllowed();
         const [cls] = await tx.query<{ academic_year_id: string }>("select academic_year_id from classes where id = ? for update", [classId]);
         if (!cls) throw new DbError("class not found", "P0001");
         if (examId) {

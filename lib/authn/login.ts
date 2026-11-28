@@ -3,6 +3,7 @@ import { eq } from "drizzle-orm";
 import type { Db } from "@/db/client";
 import { profiles, users } from "@/db/schema";
 import type { ProfileRow, UserRole } from "@/lib/db/types";
+import { getEffectiveRole } from "@/lib/permissions";
 import { beginLoginAttempt } from "./attempts";
 import { hashPassword, needsRehash, verifyPassword } from "./password";
 
@@ -37,7 +38,7 @@ export async function checkLogin(
 
   return db.transaction(async (tx) => {
     // lock order everywhere: profiles, then users
-    const [profile] = await tx.select({ role: profiles.role, active: profiles.active })
+    const [profile] = await tx.select({ role: profiles.role, active: profiles.active, until: profiles.adminAccessUntil })
       .from(profiles).where(eq(profiles.id, account.id)).for("update");
     const [login] = await tx.select({ hash: users.passwordHash, mustChange: users.mustChangePassword })
       .from(users).where(eq(users.id, account.id)).for("update");
@@ -48,7 +49,7 @@ export async function checkLogin(
       .where(eq(users.id, account.id));
     return {
       ok: true,
-      user: { id: account.id, email: address, role: profile.role, mustChangePassword: login.mustChange, authAt: now.getTime() },
+      user: { id: account.id, email: address, role: getEffectiveRole({ role: profile.role, admin_access_until: profile.until }, now), mustChangePassword: login.mustChange, authAt: now.getTime() },
     } as const;
   });
 }
@@ -81,10 +82,10 @@ export async function changeOwnPassword(
 
 /** Right after a successful sign-in: where to send this person. */
 export async function loginTarget(db: Db, email: string): Promise<{ role: UserRole; mustChangePassword: boolean } | null> {
-  const [row] = await db.select({ role: profiles.role, mustChangePassword: users.mustChangePassword })
+  const [row] = await db.select({ role: profiles.role, until: profiles.adminAccessUntil, mustChangePassword: users.mustChangePassword })
     .from(users).innerJoin(profiles, eq(profiles.id, users.id))
     .where(eq(users.email, email.trim().toLowerCase())).limit(1);
-  return row ?? null;
+  return row ? { role: getEffectiveRole({ role: row.role, admin_access_until: row.until }), mustChangePassword: row.mustChangePassword } : null;
 }
 
 /** What the sign-in cookie (an Auth.js JWT) says: who, and when they typed their password. */
@@ -108,18 +109,21 @@ export async function loadSessionUser(db: Db, claims: Partial<SessionClaims> | n
   const [row] = await db.select({
     email: users.email, changedAt: users.passwordChangedAt, mustChange: users.mustChangePassword,
     fullName: profiles.fullName, phone: profiles.phone, twelfth: profiles.twelfthPassedYear,
-    role: profiles.role, active: profiles.active, isSuper: profiles.isSuper, createdAt: profiles.createdAt,
+    role: profiles.role, active: profiles.active, until: profiles.adminAccessUntil, createdAt: profiles.createdAt,
+    designation: profiles.designation,
   }).from(users).innerJoin(profiles, eq(profiles.id, users.id)).where(eq(users.id, id)).limit(1);
   if (!row?.active || row.changedAt.getTime() > authAt) return null;
+  // permissions follow the effective role: expired admin access is teacher from that moment
+  const role = getEffectiveRole({ role: row.role, admin_access_until: row.until }, new Date(now));
 
   return {
     id,
     email: row.email,
-    superAdmin: row.role === "headmaster" && row.isSuper,
+    superAdmin: role === "super_admin",
     mustChangePassword: row.mustChange,
     profile: {
       id, full_name: row.fullName, phone: row.phone, twelfth_passed_year: row.twelfth,
-      role: row.role, active: true, created_at: row.createdAt.toISOString(),
+      role, active: true, created_at: row.createdAt.toISOString(), designation: row.designation,
     },
   };
 }

@@ -24,7 +24,7 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) 
 const id = (v: string) => (uuid.safeParse(v).success ? v : undefined);
 
 export default async function ReceiptsPage({ searchParams }: PageProps<"/admin/accounts/receipts">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const sp = await searchParams;
   const { from, to } = periodFrom(sp);
   const mode = (PAYMENT_MODES as readonly string[]).includes(one(sp.mode)) ? one(sp.mode) as ReceiptFilters["mode"] : undefined;

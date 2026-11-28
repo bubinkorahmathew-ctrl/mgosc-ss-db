@@ -12,7 +12,7 @@ import { AddCategory, CategoryRow, CurrencyForm, OpeningBalanceForm } from "@/co
 export const metadata: Metadata = { title: "Account settings" };
 
 export default async function AccountSettingsPage() {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const [categories, balances, currency] = await Promise.all([
     listCategories(user, { all: true }), listOpeningBalances(user), getCurrency(user),
   ]);

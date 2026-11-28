@@ -6,7 +6,7 @@ import { ImportScreen, parseUploadTab } from "@/components/import/import-screen"
 export const metadata: Metadata = { title: "Bulk upload" };
 
 export default async function AdminImportPage({ searchParams }: PageProps<"/admin/import">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const sp = await searchParams;
   const { classes, exams } = await getUploadOptions(user);
   return (

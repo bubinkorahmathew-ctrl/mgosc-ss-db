@@ -1,5 +1,7 @@
 /** Row types. Mirrors db/schema (Drizzle). */
-export type UserRole = "headmaster" | "teacher" | "ovbs_teacher";
+import type { Designation } from "@/lib/permissions";
+/** Stored role. On a signed-in user (profile.role) it is the EFFECTIVE role (lib/permissions getEffectiveRole). */
+export type UserRole = "super_admin" | "admin" | "teacher" | "ovbs_teacher";
 export type Gender = "male" | "female";
 export type StudentStatus = "active" | "inactive" | "passed_out";
 export type RegistrationStatus = "pending" | "approved" | "rejected";
@@ -12,6 +14,7 @@ export type CertificateType =
 export type ProfileRow = {
   id: string; full_name: string; phone: string | null; twelfth_passed_year: number | null;
   role: UserRole; active: boolean; created_at: string;
+  designation: Designation | null;
 };
 export type AcademicYearRow = {
   id: string; name: string; start_date: string; end_date: string; is_current: boolean;

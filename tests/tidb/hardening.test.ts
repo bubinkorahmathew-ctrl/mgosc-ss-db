@@ -31,7 +31,9 @@ describe("configuration", () => {
     const rows = await t.database.query<{ t: string; c: string; n: string }>(
       "select table_name as t, column_name as c, is_nullable as n from information_schema.columns where table_schema = ?", [t.name]);
     for (const table of Object.keys(COLUMNS) as TableName[]) {
-      const real = rows.filter((r) => r.t === table && !["current_key", "section_key", "is_super"].includes(r.c));
+      const real = rows.filter((r) => r.t === table && !["current_key", "section_key"].includes(r.c)
+        // not reachable through the policy engine (only lib/repo/users.ts and notify.ts, with Drizzle)
+        && !["profiles.email_notifications", "profiles.admin_access_until", "class_teachers.is_class_teacher", "class_teachers.created_at"].includes(`${r.t}.${r.c}`));
       const listed = Object.entries(COLUMNS[table]).map(([c, kind]) =>
         `${c}:${typeof kind === "string" && kind.endsWith("?") ? "YES" : "NO"}`);
       expect(listed.sort()).toEqual(real.map((r) => `${r.c}:${r.n}`).sort());

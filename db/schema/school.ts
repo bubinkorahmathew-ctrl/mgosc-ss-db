@@ -34,6 +34,9 @@ export const classes = mysqlTable("classes", {
 export const classTeachers = mysqlTable("class_teachers", {
   classId: ref("class_id").notNull().references(() => classes.id, { onDelete: "cascade" }),
   teacherId: ref("teacher_id").notNull().references(() => profiles.id, { onDelete: "cascade" }),
+  /** the class's main teacher (several teachers may share a class) */
+  isClassTeacher: boolean("is_class_teacher").notNull().default(false),
+  createdAt: createdAt(),
 }, (t) => [
   primaryKey({ columns: [t.classId, t.teacherId] }),
   index("class_teachers_teacher_idx").on(t.teacherId),

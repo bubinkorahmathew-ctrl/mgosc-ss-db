@@ -12,11 +12,14 @@ export const profiles = mysqlTable("profiles", {
   fullName: varchar("full_name", { length: 120 }).notNull(),
   phone: text("phone"),
   twelfthPassedYear: smallint("twelfth_passed_year"),
-  role: mysqlEnum("role", ["headmaster", "teacher", "ovbs_teacher"]).notNull().default("teacher"),
+  /** permissions (lib/permissions.ts); ovbs_teacher is for the coming OVBS module */
+  role: mysqlEnum("role", ["super_admin", "admin", "teacher", "ovbs_teacher"]).notNull().default("teacher"),
+  /** official title, for display only (never a permission) */
+  designation: mysqlEnum("designation", ["vicar", "hm", "assistant_hm", "acting_hm", "teacher", "technical_admin"]),
+  /** temporary admin rights: with role admin, admin until this moment, then a teacher again; null = permanent */
+  adminAccessUntil: utc("admin_access_until"),
   active: boolean("active").notNull().default(true),
   createdAt: createdAt(),
-  /** a headmaster with every right (settings, other admins) */
-  isSuper: boolean("is_super").notNull().default(false),
   /** receive notification emails (new registrations, new students in their class) */
   emailNotifications: boolean("email_notifications").notNull().default(true),
 }, (t) => [

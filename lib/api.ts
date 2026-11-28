@@ -2,6 +2,7 @@ import "server-only";
 import { getCurrentUser, type CurrentUser } from "@/lib/auth";
 import { getSettings } from "@/lib/repo/settings";
 import { loadBanner, loadBrandingImage } from "@/lib/pdf/images";
+import { isAdmin } from "@/lib/permissions";
 
 export function textResponse(status: number, message: string) {
   return new Response(message, { status, headers: { "Content-Type": "text/plain; charset=utf-8", "Cache-Control": "no-store" } });
@@ -11,7 +12,7 @@ export function textResponse(status: number, message: string) {
 export async function apiUser(): Promise<CurrentUser | Response> {
   const user = await getCurrentUser();
   if (!user) return textResponse(401, "Please sign in again.");
-  if (user.profile.role !== "headmaster" && user.profile.role !== "teacher") return textResponse(403, "Not allowed.");
+  if (!isAdmin(user.profile.role) && user.profile.role !== "teacher") return textResponse(403, "Not allowed.");
   return user;
 }
 

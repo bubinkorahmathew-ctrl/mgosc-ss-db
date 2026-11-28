@@ -9,7 +9,7 @@ import { PromotionForm } from "./promotion-form";
 export const metadata: Metadata = { title: "Promotion" };
 
 export default async function PromotionPage({ searchParams }: PageProps<"/admin/promotion">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const sp = await searchParams;
   const all = await getClassOptions(user);
   const opt = (c: (typeof all)[number]) => ({ value: c.id, label: `${c.label} (${c.yearName})` });

@@ -17,7 +17,7 @@ const COLUMN: Record<Signer, "signature_url" | "vicar_signature_url"> = { headma
 export const blobPath = (signer: Signer) => `branding/${KIND[signer]}`;
 
 function superAdmin(user: Viewer) {
-  if (!requireRole(user, "headmaster").superAdmin) throw new AuthError("Only a super admin can do that.");
+  if (!requireRole(user, "admin").superAdmin) throw new AuthError("Only a super admin can do that.");
 }
 
 /** Saves the image and points the settings at it. Super admin only. Returns the new URL. */
@@ -51,7 +51,7 @@ export async function removeSignature(user: Viewer, signer: Signer = "headmaster
 
 /** For signed-in staff only (the signature is worth protecting): pages, previews and PDFs. */
 export async function readSignature(user: Viewer, signer: Signer = "headmaster"): Promise<{ mime: ImageMime; data: Buffer } | null> {
-  requireRole(user, "headmaster", "teacher");
+  requireRole(user, "admin", "teacher");
   if (blobEnabled()) {
     const file = await readPrivateFile(blobPath(signer));
     if (file) return { mime: file.contentType === "image/png" ? "image/png" : "image/jpeg", data: file.data };

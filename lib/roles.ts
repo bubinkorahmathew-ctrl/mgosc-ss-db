@@ -5,15 +5,14 @@
 export type RightLevel = "yes" | "own" | "no";
 
 export const ROLES = [
-  { key: "super", label: "Super admin", about: "Created with npm run super-admin. Everything, including admin accounts and settings." },
-  { key: "admin", label: "Admin", about: "Created by the super admin on the Admins page. All school work." },
-  { key: "teacher", label: "Teacher", about: "Created on the Teachers page. Only the classes ticked for them this year." },
+  { key: "super", label: "Super admin", about: "The first is created with npm run super-admin; more on the Users page. Everything, including roles and settings." },
+  { key: "admin", label: "Admin", about: "Given by a super admin on the Users page, permanently or until a date (then a teacher again). All school work." },
+  { key: "teacher", label: "Teacher", about: "Added on the Users page. Only the classes ticked for them this year." },
 ] as const;
 
 export const RIGHTS: { label: string; super: RightLevel; admin: RightLevel; teacher: RightLevel }[] = [
-  { label: "Admin accounts, user rights, school settings, signature, menu icons", super: "yes", admin: "no", teacher: "no" },
-  { label: "Make a teacher an admin, or an admin a teacher again (same login)", super: "yes", admin: "no", teacher: "no" },
-  { label: "Teacher accounts and class assignment", super: "yes", admin: "yes", teacher: "no" },
+  { label: "Give or remove admin and super admin roles, temporary admin access; user rights, school settings, signature, menu icons", super: "yes", admin: "no", teacher: "no" },
+  { label: "Teacher accounts, designations, invites and class assignment", super: "yes", admin: "yes", teacher: "no" },
   { label: "Academic years, classes, subjects and exams", super: "yes", admin: "yes", teacher: "no" },
   { label: "Approve or reject registrations", super: "yes", admin: "yes", teacher: "no" },
   { label: "Add students (one by one or bulk upload)", super: "yes", admin: "yes", teacher: "own" },

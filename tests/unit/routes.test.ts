@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { homeFor, redirectFor } from "@/lib/authn/routes";
 import { credentialsSchema, safeNext } from "@/lib/validation/auth";
 
-const admin = { role: "headmaster", mustChangePassword: false } as const;
+const admin = { role: "admin", mustChangePassword: false } as const;
 const teacher = { role: "teacher", mustChangePassword: false } as const;
 const ovbs = { role: "ovbs_teacher", mustChangePassword: false } as const;
 

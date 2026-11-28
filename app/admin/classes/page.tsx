@@ -3,6 +3,7 @@ import { requireRole } from "@/lib/auth";
 import { classesPage } from "@/lib/repo/academics";
 import { getAcademicYears } from "@/lib/repo/classes";
 import { classLabel } from "@/lib/format";
+import { staffName } from "@/lib/permissions";
 import { formatDate } from "@/lib/dates";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/page-header";
@@ -11,14 +12,14 @@ import { AcademicYearBar, ClassDialog, DeleteClassButton } from "./class-dialogs
 export const metadata: Metadata = { title: "Classes" };
 
 export default async function ClassesPage({ searchParams }: PageProps<"/admin/classes">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const sp = await searchParams;
   const years = await getAcademicYears(user);
   const current = years.find((y) => y.is_current);
   const year = years.find((y) => y.id === sp.year) ?? current ?? years[0];
 
   const { classes, teachers, counts } = await classesPage(user, year?.id);
-  const teacherOptions = teachers.map((t) => ({ id: t.id, label: t.full_name }));
+  const teacherOptions = teachers.map((t) => ({ id: t.id, label: staffName(t.full_name, t.designation) }));
 
   return (
     <>
@@ -49,7 +50,7 @@ export default async function ClassesPage({ searchParams }: PageProps<"/admin/cl
                 <CardContent className="space-y-3">
                   <p className="text-sm">
                     {assigned.length
-                      ? assigned.map((a) => a.profiles?.full_name).filter(Boolean).join(", ")
+                      ? assigned.map((a) => a.profiles && staffName(a.profiles.full_name, a.profiles.designation)).filter(Boolean).join(", ")
                       : <span className="text-amber-700">No teacher assigned</span>}
                   </p>
                   <div className="flex gap-2">

@@ -13,7 +13,7 @@ import { Pagination, StudentsTable } from "@/components/students/students-table"
 export const metadata: Metadata = { title: "Students" };
 
 export default async function StudentsPage({ searchParams }: PageProps<"/admin/students">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const sp = await searchParams;
   const filters = studentFiltersSchema.parse(sp);
   const [result, classes, prayerUnits] = await Promise.all([listStudents(user, filters), getClassOptions(user), getPrayerUnits(user)]);

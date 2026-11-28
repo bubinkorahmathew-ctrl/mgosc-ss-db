@@ -16,7 +16,7 @@ function revalidateExams() {
 
 export async function saveSubject(input: unknown): Promise<ActionResult<{ id: string }>> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     const data = subjectSchema.parse(input);
     const id = await academics.saveSubject(user, data);
     revalidateExams();
@@ -28,7 +28,7 @@ export async function saveSubject(input: unknown): Promise<ActionResult<{ id: st
 
 export async function deleteSubject(subjectId: unknown): Promise<ActionResult> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     await academics.deleteSubject(user, uuid.parse(subjectId));
     revalidateExams();
     return { ok: true, message: "Subject deleted." };
@@ -39,7 +39,7 @@ export async function deleteSubject(subjectId: unknown): Promise<ActionResult> {
 
 export async function createExams(input: unknown): Promise<ActionResult<{ created: number }>> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     const { created, skipped } = await academics.createExams(user, createExamSchema.parse(input));
     revalidateExams();
     const note = skipped ? ` (skipped ${skipped} class${skipped === 1 ? "" : "es"} that already had it)` : "";
@@ -51,7 +51,7 @@ export async function createExams(input: unknown): Promise<ActionResult<{ create
 
 export async function updateExam(input: unknown): Promise<ActionResult> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     if (!(await academics.updateExam(user, updateExamSchema.parse(input)))) return { ok: false, error: "Exam not found." };
     revalidateExams();
     return { ok: true, message: "Exam updated." };
@@ -62,7 +62,7 @@ export async function updateExam(input: unknown): Promise<ActionResult> {
 
 export async function deleteExam(examId: unknown): Promise<ActionResult> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     await academics.deleteExam(user, uuid.parse(examId));
     revalidateExams();
     return { ok: true, message: "Exam and its marks deleted." };

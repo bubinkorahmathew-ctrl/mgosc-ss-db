@@ -1,6 +1,6 @@
 import "server-only";
 /**
- * "Forgot password": a one-time link, valid for an hour. Only the SHA-256 of the token is
+ * "Forgot password": a one-time link, valid for an hour (invites from the Users page: 48 hours). Only the SHA-256 of the token is
  * stored, so the database alone can't be used to reset anyone's password. Using a link sets the
  * new password with the same bcrypt hashing as everything else and ends every existing sign-in
  * (they are older than password_changed_at).
@@ -13,6 +13,8 @@ import { uuidv7 } from "@/lib/ids";
 import { hashPassword } from "./password";
 
 export const RESET_LINK_MINUTES = 60;
+/** A new staff member's "Set your password" link (an invite) lasts longer. */
+export const INVITE_LINK_MINUTES = 48 * 60;
 /** At most this many links per account per hour; more requests are ignored quietly. */
 export const RESET_REQUESTS_PER_HOUR = 3;
 
@@ -23,7 +25,9 @@ const TOKEN = /^[A-Za-z0-9_-]{43}$/;
  * A new link for this email, or null when there is nothing to send (no such account, not
  * active, or too many recent requests). The caller says the same thing in every case.
  */
-export async function createResetLink(db: Db, email: string, now = new Date()): Promise<{ token: string; name: string; email: string } | null> {
+export async function createResetLink(
+  db: Db, email: string, now = new Date(), minutes: number = RESET_LINK_MINUTES,
+): Promise<{ token: string; name: string; email: string } | null> {
   const address = email.trim().toLowerCase();
   const [account] = await db.select({ id: users.id, email: users.email, name: profiles.fullName, active: profiles.active })
     .from(users).innerJoin(profiles, eq(profiles.id, users.id)).where(eq(users.email, address)).limit(1);
@@ -41,7 +45,7 @@ export async function createResetLink(db: Db, email: string, now = new Date()): 
       .where(and(eq(passwordResetTokens.userId, account.id), isNull(passwordResetTokens.usedAt)));
     await tx.insert(passwordResetTokens).values({
       id: uuidv7(), userId: account.id, tokenHash: hashToken(token), createdAt: now,
-      expiresAt: new Date(now.getTime() + RESET_LINK_MINUTES * 60_000),
+      expiresAt: new Date(now.getTime() + minutes * 60_000),
     });
     return true;
   });

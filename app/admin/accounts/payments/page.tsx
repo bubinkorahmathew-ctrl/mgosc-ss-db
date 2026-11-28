@@ -21,7 +21,7 @@ const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v) 
 const STATUSES = ["draft", "approved", "paid", "void"] as const;
 
 export default async function PaymentsPage({ searchParams }: PageProps<"/admin/accounts/payments">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const sp = await searchParams;
   const { from, to } = periodFrom(sp);
   const status = (STATUSES as readonly string[]).includes(one(sp.status)) ? one(sp.status) as PaymentFilters["status"] : undefined;

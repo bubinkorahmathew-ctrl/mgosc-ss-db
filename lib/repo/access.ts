@@ -12,7 +12,7 @@ import { AuthError, type CurrentUser } from "@/lib/auth";
 import { getDatabase } from "@/lib/db";
 import { createDb } from "@/lib/db/client";
 import { createQueryClient } from "@/lib/db/query";
-import type { UserRole } from "@/lib/db/types";
+import { hasRole, isAdmin, type RoleGuard } from "@/lib/permissions";
 
 export type Viewer = CurrentUser;
 
@@ -32,16 +32,16 @@ export function requireUser(user: Viewer | null): Viewer {
   return user;
 }
 
-/** Throws unless the user has one of the roles. */
-export function requireRole(user: Viewer | null, ...roles: UserRole[]): Viewer {
+/** Throws unless the user has one of the roles ("admin" = admin or super admin; effective role). */
+export function requireRole(user: Viewer | null, ...roles: RoleGuard[]): Viewer {
   const u = requireUser(user);
-  if (!roles.includes(u.profile.role)) throw new AuthError();
+  if (!roles.some((r) => hasRole(u.profile.role, r))) throw new AuthError();
   return u;
 }
 
 /** Class ids a teacher is assigned to; "all" for admins; none for anyone else. */
 export async function teacherClassIds(user: Viewer): Promise<string[] | "all"> {
-  if (user.profile.role === "headmaster") return "all";
+  if (isAdmin(user.profile.role)) return "all";
   if (user.profile.role !== "teacher") return [];
   const rows = await dbAs(user).select("class_teachers", { where: [["teacher_id", "eq", user.id]] });
   return rows.map((r) => r.class_id);

@@ -27,7 +27,7 @@ export async function getSettings(user: Viewer | null): Promise<SchoolSettingsRo
 }
 
 function superAdmin(user: Viewer) {
-  if (!requireRole(user, "headmaster").superAdmin) throw new AuthError("Only a super admin can do that.");
+  if (!requireRole(user, "admin").superAdmin) throw new AuthError("Only a super admin can do that.");
 }
 
 /** School details and certificate wording. Super admin only. */
@@ -49,7 +49,7 @@ export async function saveMenuIcons(user: Viewer, style: z.output<typeof navStyl
 
 /** Add a prayer unit, or rename / switch one on or off. "Not assigned" is fixed. Admins. */
 export async function savePrayerUnit(user: Viewer, input: { id?: string; name: string; active: boolean }): Promise<void> {
-  requireRole(user, "headmaster");
+  requireRole(user, "admin");
   const { id, name, active } = input;
   if (id === NOT_ASSIGNED_PRAYER_UNIT) throw new UserError("\"Not assigned\" cannot be changed.");
   const dbc = queryAs(user);
@@ -65,7 +65,7 @@ export async function savePrayerUnit(user: Viewer, input: { id?: string; name: s
 
 /** Only a unit no student or registration uses can be deleted; otherwise switch it off. */
 export async function deletePrayerUnit(user: Viewer, id: string): Promise<void> {
-  requireRole(user, "headmaster");
+  requireRole(user, "admin");
   if (id === NOT_ASSIGNED_PRAYER_UNIT) throw new UserError("\"Not assigned\" cannot be deleted.");
   const { data, error } = await queryAs(user).from("prayer_units").delete().eq("id", id).select("id");
   if (error) {

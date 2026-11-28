@@ -9,7 +9,7 @@ const tally = (rows: { status: "present" | "absent" | "late" }[]) => {
 };
 
 export async function adminDashboard(user: Viewer, today: string) {
-  requireRole(user, "headmaster");
+  requireRole(user, "admin");
   const dbc = queryAs(user);
   const [{ data: classes }, { count: students }, { count: pending }, { data: attendance }, { count: teachers }, { count: exams }] =
     await Promise.all([
@@ -27,7 +27,7 @@ export async function adminDashboard(user: Viewer, today: string) {
 }
 
 export async function teacherDashboard(user: Viewer, classId: string, today: string) {
-  requireRole(user, "teacher", "headmaster");
+  requireRole(user, "teacher", "admin");
   const dbc = queryAs(user);
   const [{ data: students }, { data: att }, { count: activities }, { count: exams }] = await Promise.all([
     dbc.from("students").select("gender").eq("class_id", classId).eq("status", "active"),

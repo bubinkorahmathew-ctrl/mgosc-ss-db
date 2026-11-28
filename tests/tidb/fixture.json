@@ -2,7 +2,7 @@
  "profiles": [
   {
    "id": "11111111-1111-1111-1111-111111111111",
-   "role": "headmaster",
+   "role": "super_admin",
    "phone": "9000000000",
    "active": true,
    "full_name": "Headmaster (change me)",

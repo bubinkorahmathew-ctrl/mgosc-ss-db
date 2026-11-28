@@ -144,7 +144,7 @@ async function assertPrayerUnit(user: Viewer, unitId: string, currentId?: string
 
 /** Admins add to any class (or none); teachers only to their own current class. Returns id and admission number. */
 export async function createStudent(user: Viewer, data: z.output<typeof studentSchema>) {
-  requireRole(user, "teacher", "headmaster");
+  requireRole(user, "teacher", "admin");
   if (user.profile.role === "teacher") {
     if (!data.class_id) throw new AuthError("Choose one of your classes.");
     await assertTeacherOfClass(user, data.class_id);
@@ -156,7 +156,7 @@ export async function createStudent(user: Viewer, data: z.output<typeof studentS
 }
 
 export async function updateStudent(user: Viewer, input: z.output<typeof updateStudentSchema>): Promise<void> {
-  requireRole(user, "headmaster");
+  requireRole(user, "admin");
   const { id, ...data } = input;
   const dbc = queryAs(user);
   const { data: current } = await dbc.from("students").select("prayer_unit_id").eq("id", id).maybeSingle();
@@ -170,14 +170,14 @@ export async function updateStudent(user: Viewer, input: z.output<typeof updateS
 }
 
 export async function moveStudent(user: Viewer, { id, class_id }: z.output<typeof moveStudentSchema>): Promise<void> {
-  requireRole(user, "headmaster");
+  requireRole(user, "admin");
   const { data: rows, error } = await queryAs(user).from("students").update({ class_id }).eq("id", id).select("id");
   if (error) throw error;
   if (!rows?.length) throw new UserError("Student not found.");
 }
 
 export async function setStudentStatus(user: Viewer, { id, status, inactive_reason }: z.output<typeof setStudentStatusSchema>): Promise<void> {
-  requireRole(user, "headmaster");
+  requireRole(user, "admin");
   const { data: rows, error } = await queryAs(user).from("students")
     .update({ status, inactive_reason: status === "inactive" ? inactive_reason : null }).eq("id", id).select("id");
   if (error) throw error;
@@ -186,7 +186,7 @@ export async function setStudentStatus(user: Viewer, { id, status, inactive_reas
 
 /** Permanent, super admin only: marks, attendance, activities and certificates of the student go too. */
 export async function deleteStudent(user: Viewer, id: string): Promise<void> {
-  if (!requireRole(user, "headmaster").superAdmin) throw new AuthError("Only a super admin can do that.");
+  if (!requireRole(user, "admin").superAdmin) throw new AuthError("Only a super admin can do that.");
   const { data: rows, error } = await queryAs(user).from("students").delete().eq("id", id).select("id");
   if (error) throw error;
   if (!rows?.length) throw new UserError("Student not found.");
@@ -197,7 +197,7 @@ export async function deleteStudent(user: Viewer, id: string): Promise<void> {
  * in the source class are touched; history keeps pointing at the old class. Returns how many moved.
  */
 export async function promoteStudents(user: Viewer, { from_class_id, target, student_ids }: z.output<typeof promotionSchema>): Promise<number> {
-  requireRole(user, "headmaster");
+  requireRole(user, "admin");
   const dbc = queryAs(user);
   if (target !== "passed_out") {
     const { data: cls } = await dbc.from("classes").select("id").eq("id", target).maybeSingle();

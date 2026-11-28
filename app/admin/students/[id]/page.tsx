@@ -13,7 +13,7 @@ import { StudentAdminActions } from "./student-admin-actions";
 export const metadata: Metadata = { title: "Student" };
 
 export default async function AdminStudentPage({ params }: PageProps<"/admin/students/[id]">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const [profile, classes] = await Promise.all([getStudentProfile(user, id), getClassOptions(user)]);

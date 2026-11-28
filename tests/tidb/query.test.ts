@@ -141,7 +141,7 @@ describe("signature", () => {
     s.use();
     await expect(saveSignature(viewer(IDS.teacher1, "teacher"), PNG)).rejects.toThrow(/not allowed/);
     // a plain admin (not the super admin) can't either
-    await expect(saveSignature(viewer(IDS.headmaster, "headmaster", false), PNG)).rejects.toThrow(/super admin/);
+    await expect(saveSignature(viewer(IDS.headmaster, "admin"), PNG)).rejects.toThrow(/super admin/);
     await expect(saveSignature(viewer(IDS.headmaster), Buffer.from("<svg onload=alert(1)>"))).rejects.toThrow(/PNG or JPG/);
   });
 });

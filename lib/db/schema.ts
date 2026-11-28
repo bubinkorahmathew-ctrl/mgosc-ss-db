@@ -42,7 +42,9 @@ const personal = {
 
 export const COLUMNS: { [T in TableName]: { readonly [C in keyof Rows[T]]-?: Kind } } = {
   profiles: {
-    id: "uuid", full_name: "text", phone: "text?", twelfth_passed_year: "int?", role: ["headmaster", "teacher"], active: "bool", created_at: "time",
+    id: "uuid", full_name: "text", phone: "text?", twelfth_passed_year: "int?", role: ["super_admin", "admin", "teacher", "ovbs_teacher"], active: "bool", created_at: "time",
+    /** display only; the enum is checked by the database */
+    designation: "text?",
   },
   academic_years: { id: "uuid", name: "text", start_date: "date", end_date: "date", is_current: "bool" },
   classes: { id: "uuid", name: "text", section: "text?", academic_year_id: "uuid", created_at: "time" },

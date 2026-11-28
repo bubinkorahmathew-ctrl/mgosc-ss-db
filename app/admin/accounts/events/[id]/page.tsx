@@ -18,7 +18,7 @@ import { PaymentDialog } from "@/components/accounts/payment-dialog";
 export const metadata: Metadata = { title: "Event" };
 
 export default async function EventPage({ params }: PageProps<"/admin/accounts/events/[id]">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const { id } = await params;
   if (!/^[0-9a-f-]{36}$/i.test(id)) notFound();
   const [st, currency, expense] = await Promise.all([

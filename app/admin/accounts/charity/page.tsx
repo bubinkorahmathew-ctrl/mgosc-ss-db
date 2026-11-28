@@ -12,7 +12,7 @@ import { ReceiptDialog } from "@/components/accounts/receipt-dialog";
 export const metadata: Metadata = { title: "Charity collection" };
 
 export default async function AdminCharityPage({ searchParams }: PageProps<"/admin/accounts/charity">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const sp = await searchParams;
   const [classes, payers, categories, events] = await Promise.all([
     getClassOptions(user, { currentOnly: true }), payerOptions(user), listCategories(user, { type: "income" }), listEvents(user),

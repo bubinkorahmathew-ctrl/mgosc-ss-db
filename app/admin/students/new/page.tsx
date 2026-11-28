@@ -8,7 +8,7 @@ import { StudentForm } from "@/components/students/student-form";
 export const metadata: Metadata = { title: "Add student" };
 
 export default async function NewStudentPage() {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const [classes, prayerUnits] = await Promise.all([getClassOptions(user, { currentOnly: true }), prayerUnitOptions(user)]);
   return (
     <>

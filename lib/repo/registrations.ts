@@ -22,7 +22,7 @@ export async function submitRegistration(data: Registration, client: { device: s
 
 /** Creates the student with the next admission number and marks the registration approved, in one transaction. */
 export async function approveRegistration(user: Viewer, input: z.output<typeof approveRegistrationSchema>): Promise<string> {
-  requireRole(user, "headmaster");
+  requireRole(user, "admin");
   const { data, error } = await queryAs(user).call((db) => db.approveRegistration(input.registration_id, input.class_id));
   if (error) {
     if (/already reviewed/.test(error.message)) throw new UserError("This registration was already reviewed.");
@@ -32,7 +32,7 @@ export async function approveRegistration(user: Viewer, input: z.output<typeof a
 }
 
 export async function rejectRegistration(user: Viewer, input: z.output<typeof rejectRegistrationSchema>): Promise<void> {
-  requireRole(user, "headmaster");
+  requireRole(user, "admin");
   const { data, error } = await queryAs(user).from("registrations")
     .update({ status: "rejected", review_note: input.review_note, reviewed_by: user.id, reviewed_at: new Date().toISOString() })
     .eq("id", input.registration_id).eq("status", "pending")

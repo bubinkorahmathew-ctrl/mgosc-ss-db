@@ -1,13 +1,13 @@
 import "server-only";
 /**
- * Teacher logins (created, edited, deactivated and reset by admins).
- * Each function checks "active headmaster" itself, inside its own transaction, and can only
- * ever act on a teacher, never on a headmaster.
+ * Teacher logins with a temporary password (the app now uses lib/repo/users.ts with email
+ * invites; kept for scripts and tests). Each function checks "active admin" itself, inside its
+ * own transaction, and can only ever act on a teacher, never on an admin.
  */
 import { randomUUID } from "node:crypto";
 import type { Database, Executor } from "@/lib/db/connection";
 import { DbError, notAllowed } from "@/lib/db/errors";
-import { lockActor } from "@/lib/db/policies";
+import { ADMIN_NOW_SQL, lockActor } from "@/lib/db/policies";
 import { validateRows } from "@/lib/db/rules";
 import { toId } from "@/lib/db/values";
 import { generateTempPassword } from "@/lib/password";
@@ -15,9 +15,9 @@ import { hashPassword } from "./password";
 
 const NO_FACTS = { studentClass: new Map(), examClass: new Map() };
 
-async function requireHeadmaster(tx: Executor, actorId: string) {
+async function requireAdmin(tx: Executor, actorId: string) {
   const actor = await lockActor(tx, toId(actorId));
-  if (!actor.headmaster) throw notAllowed();
+  if (!actor.admin) throw notAllowed();
 }
 
 async function lockTeacher(tx: Executor, teacherId: string) {
@@ -60,7 +60,7 @@ export async function createTeacherAccount(
   const hash = await hashPassword(password);
   const id = randomUUID();
   await database.transaction(async (tx) => {
-    await requireHeadmaster(tx, actorId);
+    await requireAdmin(tx, actorId);
     await assertEmailFree(tx, input.email, null);
     await validateRows(tx, "profiles", [{ full_name: input.full_name }], NO_FACTS, null);
     await tx.query("insert into profiles (id, full_name, phone, twelfth_passed_year, role) values (?, ?, ?, ?, 'teacher')",
@@ -76,7 +76,7 @@ export async function updateTeacherAccount(
 ): Promise<void> {
   const id = toId(teacherId);
   await database.transaction(async (tx) => {
-    await requireHeadmaster(tx, actorId);
+    await requireAdmin(tx, actorId);
     await lockTeacher(tx, id);
     await validateRows(tx, "profiles", [{ full_name: input.full_name }], NO_FACTS, null);
     await tx.query("update profiles set full_name = ?, phone = ? where id = ?", [input.full_name, input.phone, id]);
@@ -97,7 +97,7 @@ export async function setTeacherAccountActive(
 ): Promise<void> {
   const id = toId(teacherId);
   await database.transaction(async (tx) => {
-    await requireHeadmaster(tx, actorId);
+    await requireAdmin(tx, actorId);
     await lockTeacher(tx, id);
     await tx.query("update profiles set active = ? where id = ?", [active, id]);
     // sign-ins older than password_changed_at are refused: re-activating later doesn't revive them
@@ -111,7 +111,7 @@ export async function resetTeacherAccountPassword(database: Database, actorId: s
   const password = generateTempPassword();
   const hash = await hashPassword(password);
   await database.transaction(async (tx) => {
-    await requireHeadmaster(tx, actorId);
+    await requireAdmin(tx, actorId);
     await lockTeacher(tx, id);
     const [login] = await tx.query("select id from users where id = ? for update", [id]);
     if (!login) throw new DbError("this teacher has no login", "P0001");
@@ -121,12 +121,12 @@ export async function resetTeacherAccountPassword(database: Database, actorId: s
   return password;
 }
 
-/** Emails live outside profiles, and only the headmaster may list them. */
+/** Emails live outside profiles, and only admins may list them. */
 export async function listTeacherEmails(database: Database, actorId: string): Promise<Map<string, string>> {
   const rows = await database.query<{ id: string; email: string }>(
     `select u.id, u.email from users u join profiles p on p.id = u.id
       where p.role = 'teacher'
-        and exists (select 1 from profiles me where me.id = ? and me.active and me.role = 'headmaster')`,
+        and exists (select 1 from profiles me where me.id = ? and me.active and ${ADMIN_NOW_SQL})`,
     [toId(actorId)]);
   return new Map(rows.map((r) => [r.id, r.email]));
 }

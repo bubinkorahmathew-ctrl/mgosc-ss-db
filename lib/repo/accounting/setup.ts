@@ -18,7 +18,7 @@ const isDuplicate = (e: unknown) => /duplicate entry|1062/i.test(String((e as { 
 
 /** For pickers: active categories (admins may ask for switched-off ones too). */
 export async function listCategories(user: Viewer, opts: { type?: "income" | "expense"; all?: boolean } = {}) {
-  requireRole(user, "headmaster", "teacher");
+  requireRole(user, "admin", "teacher");
   if (opts.all) requireAdmin(user);
   return db().select({ id: accountCategories.id, name: accountCategories.name, type: accountCategories.type, active: accountCategories.active })
     .from(accountCategories)

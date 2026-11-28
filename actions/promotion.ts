@@ -12,7 +12,7 @@ import { toActionError, type ActionResult } from "@/lib/action-result";
  */
 export async function promoteStudents(input: unknown): Promise<ActionResult<{ moved: number }>> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     const data = promotionSchema.parse(input);
     const moved = await promote(user, data);
     for (const p of ["/admin/promotion", "/admin/students", "/admin/classes", "/admin"]) revalidatePath(p);

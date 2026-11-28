@@ -5,7 +5,7 @@ import type { SessionUser } from "@/lib/authn/login";
 import { sessionUser } from "@/lib/authn/session";
 import { auth } from "@/lib/authn/next-auth";
 import { CHANGE_PASSWORD, homeFor } from "@/lib/authn/routes";
-import type { UserRole } from "@/lib/db/types";
+import { hasRole, type RoleGuard } from "@/lib/permissions";
 
 export type CurrentUser = SessionUser;
 export { homeFor };
@@ -28,12 +28,15 @@ export const getCurrentUser = cache(async (): Promise<CurrentUser | null> => {
   return user && !user.mustChangePassword ? user : null;
 });
 
-/** For pages/layouts: redirect unless the user has the role. */
-export async function requireRole(role: UserRole): Promise<CurrentUser> {
+/**
+ * For pages/layouts: redirect unless the user has the role ("admin" = admin or super admin).
+ * The role is the effective one: expired temporary admin access counts as teacher.
+ */
+export async function requireRole(role: RoleGuard): Promise<CurrentUser> {
   const user = await getSignedInUser();
   if (!user) redirect("/login");
   if (user.mustChangePassword) redirect(CHANGE_PASSWORD);
-  if (user.profile.role !== role) redirect(homeFor(user.profile.role));
+  if (!hasRole(user.profile.role, role)) redirect(homeFor(user.profile.role));
   return user;
 }
 
@@ -44,15 +47,15 @@ export class AuthError extends Error {
 }
 
 /** For server actions / route handlers: throw instead of redirecting. */
-export async function assertRole(...roles: UserRole[]): Promise<CurrentUser> {
+export async function assertRole(...roles: RoleGuard[]): Promise<CurrentUser> {
   const user = await getCurrentUser();
-  if (!user || !roles.includes(user.profile.role)) throw new AuthError();
+  if (!user || !roles.some((r) => hasRole(user.profile.role, r))) throw new AuthError();
   return user;
 }
 
 /** School settings and admin accounts. */
 export async function assertSuperAdmin(): Promise<CurrentUser> {
-  const user = await assertRole("headmaster");
+  const user = await assertRole("admin");
   if (!user.superAdmin) throw new AuthError("Only a super admin can do that.");
   return user;
 }

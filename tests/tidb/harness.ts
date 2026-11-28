@@ -107,8 +107,6 @@ setTestDrizzle(createDrizzle("mysql://no-test-database.invalid:4000/none"));
     await migrate(drizzle({ client: connect({ url }) }), { migrationsFolder: path.join(root, "db", "migrations") });
     await copyFixture(setup);
     await extend?.(setup);
-    // the spec's headmaster had every right: that is today's super admin
-    await setup.query("update profiles set is_super = true where role = 'headmaster'");
   } catch (e) {
     await destroy();
     throw e;

@@ -20,7 +20,7 @@ const TABS = [
 ];
 
 export default async function AdminReportsPage({ searchParams }: PageProps<"/admin/reports">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const sp = await searchParams;
   const tab = TABS.some((t) => t.id === sp.tab) ? (sp.tab as string) : "students";
   const classes = (await getClassOptions(user)).map((c) => ({

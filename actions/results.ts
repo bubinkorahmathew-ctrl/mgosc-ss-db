@@ -17,7 +17,7 @@ function revalidateResults() {
 /** Replace the whole grade scale. Admins only; bands must cover 0-100 with no gap or overlap. */
 export async function saveGradeScale(input: unknown): Promise<ActionResult> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     const bands = gradeScaleSchema.parse(input);
     const problems = scaleProblems(bands);
     if (problems.length) return { ok: false, error: problems[0], fieldErrors: { scale: problems } };
@@ -34,7 +34,7 @@ const minPctSchema = z.object({ attendance_topper_min_pct: z.number().int().min(
 /** How many of a period's Sundays must have had attendance for an attendance topper. */
 export async function saveTopperSettings(input: unknown): Promise<ActionResult> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     await toppers.saveTopperSettings(user, minPctSchema.parse(input));
     revalidateResults();
     return { ok: true, message: "Saved." };
@@ -46,7 +46,7 @@ export async function saveTopperSettings(input: unknown): Promise<ActionResult> 
 /** Assign (confirm) the calculated toppers; the values are worked out again on the server. */
 export async function confirmToppers(input: unknown): Promise<ActionResult<{ confirmed: number }>> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     const { confirmed, names } = await toppers.confirmToppers(user, topperQuerySchema.parse(input));
     revalidateResults();
     revalidatePath("/admin");

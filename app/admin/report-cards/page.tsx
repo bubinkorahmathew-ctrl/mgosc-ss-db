@@ -10,7 +10,7 @@ import { ResultsView } from "@/components/results/results-view";
 export const metadata: Metadata = { title: "Report cards" };
 
 export default async function ReportCardsPage({ searchParams }: PageProps<"/admin/report-cards">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const sp = await searchParams;
   const years = await getAcademicYears(user);
   const year = years.find((y) => y.id === sp.year) ?? years.find((y) => y.is_current) ?? years[0];

@@ -7,6 +7,7 @@ import { ABSENT_MARK } from "@/lib/validation/teacher";
 import type { z } from "zod";
 import type { activitySchema, saveAttendanceSchema, saveExamAttendanceSchema, saveMarksSchema } from "@/lib/validation/teacher";
 import { assertTeacherOfClass, queryAs, requireRole, type Viewer } from "./access";
+import { isAdmin } from "@/lib/permissions";
 
 export { teacherAttendanceFrom };
 
@@ -27,7 +28,7 @@ async function examFor(user: Viewer, examId: string) {
 
 /** One day's attendance for a class: every student is saved, or none. */
 export async function saveAttendance(user: Viewer, input: z.output<typeof saveAttendanceSchema>): Promise<number> {
-  requireRole(user, "teacher", "headmaster");
+  requireRole(user, "teacher", "admin");
   const { class_id, date, entries } = input;
   await assertTeacherOfClass(user, class_id);
   await assertStudentsInClass(user, class_id, entries.map((e) => e.student_id));
@@ -44,7 +45,7 @@ export async function saveAttendance(user: Viewer, input: z.output<typeof saveAt
 
 /** Who sat the exam. Absent students get no marks and no result. Returns how many were absent. */
 export async function saveExamAttendance(user: Viewer, input: z.output<typeof saveExamAttendanceSchema>): Promise<number> {
-  requireRole(user, "teacher", "headmaster");
+  requireRole(user, "teacher", "admin");
   const { exam_id, entries } = input;
   const exam = await examFor(user, exam_id);
   await assertStudentsInClass(user, exam.class_id, entries.map((e) => e.student_id));
@@ -63,7 +64,7 @@ export async function saveExamAttendance(user: Viewer, input: z.output<typeof sa
 export async function saveMarks(
   user: Viewer, input: z.output<typeof saveMarksSchema>,
 ): Promise<{ saved: number } | { fieldErrors: Record<string, string[]> }> {
-  requireRole(user, "teacher", "headmaster");
+  requireRole(user, "teacher", "admin");
   const { exam_id, rows } = input;
   const dbc = queryAs(user);
   const exam = await examFor(user, exam_id);
@@ -100,8 +101,8 @@ export async function saveMarks(
       if (value === null) {
         const id = existingKey.get(key);
         if (id) {
-          if (user.profile.role !== "headmaster") {
-            fieldErrors[key] = ["A saved mark cannot be cleared. Enter 0 or ask the headmaster."];
+          if (!isAdmin(user.profile.role)) {
+            fieldErrors[key] = ["A saved mark cannot be cleared. Enter 0 or ask an admin."];
           } else toDelete.push(id);
         }
         continue;
@@ -132,7 +133,7 @@ export async function saveMarks(
 
 /** Adds an activity, or updates one (`id`). Returns its id, or null if it isn't the user's to change. */
 export async function saveActivity(user: Viewer, input: z.output<typeof activitySchema>): Promise<string | null> {
-  requireRole(user, "teacher", "headmaster");
+  requireRole(user, "teacher", "admin");
   const { id, ...data } = input;
   await assertTeacherOfClass(user, data.class_id);
   if (data.student_id) await assertStudentsInClass(user, data.class_id, [data.student_id]);

@@ -5,7 +5,7 @@
  */
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { randomUUID } from "node:crypto";
-import { listAdmins, teachersPage } from "@/lib/repo/accounts";
+import { listPeople, recentAudit } from "@/lib/repo/users";
 import { getClassOptions } from "@/lib/repo/classes";
 import { listRegistrations } from "@/lib/repo/registrations";
 import { getSettings, saveSettings } from "@/lib/repo/settings";
@@ -29,8 +29,8 @@ afterAll(async () => {
   await t?.destroy();
 });
 
-const superAdmin = viewer(IDS.headmaster, "headmaster", true);
-const admin = viewer(IDS.headmaster, "headmaster", false);        // same account, without the super flag
+const superAdmin = viewer(IDS.headmaster, "super_admin");
+const admin = viewer(IDS.headmaster, "admin");        // same account, as a plain admin
 const teacher = viewer(IDS.teacher1, "teacher");
 const ovbs = viewer(OVBS, "ovbs_teacher", false);
 const all = { status: "all", page: 1 } as never;
@@ -81,16 +81,13 @@ describe("attendance", () => {
 });
 
 describe("staff, registrations, settings", () => {
-  it("teacher accounts: admins only", async () => {
-    await expect(teachersPage(admin)).resolves.toBeTruthy();
-    await expect(teachersPage(teacher)).rejects.toThrow(/not allowed/);
-    await expect(teachersPage(ovbs)).rejects.toThrow(/not allowed/);
-  });
-
-  it("admin accounts: the super admin only", async () => {
-    await expect(listAdmins(superAdmin)).resolves.toBeTruthy();
-    await expect(listAdmins(admin)).rejects.toThrow(/super admin/);
-    await expect(listAdmins(teacher)).rejects.toThrow(/not allowed/);
+  it("the Users page: admins and super admins only", async () => {
+    await expect(listPeople(superAdmin)).resolves.not.toHaveLength(0);
+    await expect(listPeople(admin)).resolves.not.toHaveLength(0);
+    for (const v of [teacher, ovbs, null]) {
+      await expect(listPeople(v)).rejects.toThrow(/not allowed|sign in/);
+      await expect(recentAudit(v)).rejects.toThrow(/not allowed|sign in/);
+    }
   });
 
   it("registrations: admins see them, nobody else does", async () => {

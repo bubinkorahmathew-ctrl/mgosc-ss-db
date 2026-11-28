@@ -148,7 +148,7 @@ export async function classYearRange(user: Viewer, classId: string) {
  * browser. Admins only; replaces an earlier confirmation of the same comparison.
  */
 export async function confirmToppers(user: Viewer, q: TopperQuery): Promise<{ confirmed: number; names: string[] }> {
-  requireRole(user, "headmaster");
+  requireRole(user, "admin");
   await assertTeacherOfClass(user, q.classId);
   const outcome = await computeToppers(user, q);
   if (!outcome) throw new UserError("That class or exam is not available.");
@@ -161,14 +161,14 @@ export async function confirmToppers(user: Viewer, q: TopperQuery): Promise<{ co
 
 /** Replaces the whole grade scale (checked: 0-100, no gaps or overlaps). Admins only. */
 export async function saveGradeScale(user: Viewer, bands: GradeBand[]): Promise<void> {
-  requireRole(user, "headmaster");
+  requireRole(user, "admin");
   const { error } = await queryAs(user).call((db) => db.replaceGradeScales(bands));
   if (error) throw error;
 }
 
 /** How many of a period's Sundays must have had attendance for an attendance topper. Admins. */
 export async function saveTopperSettings(user: Viewer, data: { attendance_topper_min_pct: number }): Promise<void> {
-  requireRole(user, "headmaster");
+  requireRole(user, "admin");
   const { error } = await queryAs(user).from("school_settings").update(data).eq("id", 1);
   if (error) throw error;
 }

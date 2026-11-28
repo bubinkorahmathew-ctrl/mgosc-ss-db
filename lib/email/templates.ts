@@ -58,6 +58,24 @@ export function passwordResetEmail({ name, link }: { name: string; link: string 
   };
 }
 
+/** A new account: the person chooses their own password (link valid 48 hours). */
+export function inviteEmail({ name, link }: { name: string; link: string }): Rendered {
+  return {
+    subject: `Your ${APP_NAME} account`,
+    html: layout("Welcome! Set your password", [
+      `Hello ${escapeHtml(name)},`,
+      `A staff account has been made for you on ${escapeHtml(APP_NAME)}, the Sunday School's student system. Choose your password to start; the link works once, for 48 hours.`,
+    ], { label: "Set your password", url: link },
+    "If the link has expired, ask an admin to resend the invite."),
+    text: lines(
+      `Hello ${name},`, "",
+      `A staff account has been made for you on ${APP_NAME}, the Sunday School's student system.`,
+      "Choose your password here (the link works once, for 48 hours):", link, "",
+      "If the link has expired, ask an admin to resend the invite.",
+    ),
+  };
+}
+
 // ---------------------------------------------------------------------------
 // Notifications
 // ---------------------------------------------------------------------------

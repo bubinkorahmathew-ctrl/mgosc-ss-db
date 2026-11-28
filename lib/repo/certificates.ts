@@ -179,7 +179,7 @@ export async function certificateDetails(user: Viewer, certs: PdfCertificate[]):
  * snapshot columns and assigns gap-free numbers. Admins only.
  */
 export async function issueCertificates(user: Viewer, prepared: Extract<Awaited<ReturnType<typeof prepareCertificates>>, { ok: true }>) {
-  requireRole(user, "headmaster");
+  requireRole(user, "admin");
   const insert = prepared.rows.map((r) => ({
     student_id: r.student_id, class_id: r.class_id, type: r.type, title: r.title, body_text: r.body_text,
     exam_id: r.exam_id, activity_id: r.activity_id, topper_id: r.topper_id, issued_on: r.issued_on, issued_by: user.id,
@@ -190,7 +190,7 @@ export async function issueCertificates(user: Viewer, prepared: Extract<Awaited<
 }
 
 export async function setCertificateRevoked(user: Viewer, id: string, revoked: boolean): Promise<void> {
-  requireRole(user, "headmaster");
+  requireRole(user, "admin");
   const { data, error } = await queryAs(user).from("certificates").update({ revoked }).eq("id", id).select("id");
   if (error) throw error;
   if (!data?.length) throw new UserError("Certificate not found.");

@@ -15,7 +15,7 @@ function revalidateCerts() {
 
 export async function issueCertificates(input: unknown): Promise<ActionResult<{ ids: string[]; numbers: string[] }>> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     const prepared = await certificates.prepareCertificates(user, issueCertificatesSchema.parse(input));
     if (!prepared.ok) return prepared;
     const inserted = await certificates.issueCertificates(user, prepared);
@@ -36,7 +36,7 @@ const revokeSchema = z.object({ id: uuid, revoked: z.boolean() });
 
 export async function setCertificateRevoked(input: unknown): Promise<ActionResult> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     const { id, revoked } = revokeSchema.parse(input);
     await certificates.setCertificateRevoked(user, id, revoked);
     revalidateCerts();

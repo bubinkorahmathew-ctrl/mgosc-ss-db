@@ -15,8 +15,8 @@ import { getPrayerUnits, prayerUnitUsage } from "@/lib/repo/students";
 export const metadata: Metadata = { title: "Settings" };
 
 export default async function SettingsPage() {
-  const user = await requireRole("headmaster");
-  if (!(await requireRole("headmaster")).superAdmin) redirect("/admin");
+  const user = await requireRole("admin");
+  if (!(await requireRole("admin")).superAdmin) redirect("/admin");
   const [s, units, usage, scale] = await Promise.all([getSettings(user), getPrayerUnits(user), prayerUnitUsage(user), getGradeScale(user)]);
   const style = readNavStyle(s.nav_icons);
   const sections = (nav: NavItem[]) => styleNav(nav, style).map((n, i) => ({

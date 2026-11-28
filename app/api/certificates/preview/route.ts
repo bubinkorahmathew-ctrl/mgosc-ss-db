@@ -2,6 +2,7 @@ import { apiUser, pdfResponse, textResponse } from "@/lib/api";
 import { prepareCertificates } from "@/lib/repo/certificates";
 import { renderCertificates } from "@/lib/pdf/certificate";
 import { issueCertificatesSchema } from "@/lib/validation/certificates";
+import { isAdmin } from "@/lib/permissions";
 
 /** A preview shows at most this many students; the rest look the same. */
 const PREVIEW_MAX = 3;
@@ -18,7 +19,7 @@ export async function POST(request: Request) {
 
   const user = await apiUser();
   if (user instanceof Response) return user;
-  if (user.profile.role !== "headmaster") return textResponse(403, "Only admins issue certificates.");
+  if (!isAdmin(user.profile.role)) return textResponse(403, "Only admins issue certificates.");
 
   const body = await request.json().catch(() => null);
   const parsed = issueCertificatesSchema.safeParse(body);

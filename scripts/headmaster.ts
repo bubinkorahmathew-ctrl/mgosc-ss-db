@@ -1,7 +1,7 @@
 /**
  * npm run super-admin   (npm run headmaster does the same)
  *
- * Creates the first headmaster (super admin), or resets that password if one exists.
+ * Creates the first super admin, or resets a super admin's password. More super admins and\n * admins are then given on the Users page.
  * There is no default password anywhere: it is typed here (hidden), or given in the environment.
  *
  * Without a terminal (e.g. a deploy step), set all three and it only ever CREATES, once:

@@ -11,7 +11,7 @@ import { EventDialog } from "@/components/accounts/event-dialog";
 export const metadata: Metadata = { title: "Events" };
 
 export default async function EventsPage() {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const [list, currency] = await Promise.all([eventTotals(user), getCurrency(user)]);
   return (
     <>

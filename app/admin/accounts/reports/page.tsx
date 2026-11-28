@@ -23,7 +23,7 @@ function Exports({ report, from, to }: { report: string; from: string; to: strin
 }
 
 export default async function AccountReportsPage({ searchParams }: PageProps<"/admin/accounts/reports">) {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   const { from, to } = periodFrom(await searchParams, "year");
   const [currency, income, expense, charity, students, teachers, voided] = await Promise.all([
     getCurrency(user), totalsByCategory(user, "income", from, to), totalsByCategory(user, "expense", from, to),

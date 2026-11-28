@@ -3,12 +3,13 @@ import { apiUser, textResponse } from "@/lib/api";
 import { attachBill, MAX_BILL_BYTES, readBill } from "@/lib/repo/accounting/payments";
 import { uuid } from "@/lib/validation/common";
 import { UserError } from "@/lib/user-error";
+import { isAdmin } from "@/lib/permissions";
 
 /** GET: the bill of a voucher (photo or PDF), for admins only. Never cached publicly. */
 export async function GET(_req: Request, ctx: RouteContext<"/api/accounts/payments/[id]/bill">) {
   const user = await apiUser();
   if (user instanceof Response) return user;
-  if (user.profile.role !== "headmaster") return textResponse(403, "Not allowed.");
+  if (!isAdmin(user.profile.role)) return textResponse(403, "Not allowed.");
   const id = uuid.safeParse((await ctx.params).id);
   if (!id.success) return textResponse(400, "Invalid link.");
   const file = await readBill(user, id.data);
@@ -32,7 +33,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/accounts/pa
 
   const user = await apiUser();
   if (user instanceof Response) return user;
-  if (user.profile.role !== "headmaster") return textResponse(403, "Not allowed.");
+  if (!isAdmin(user.profile.role)) return textResponse(403, "Not allowed.");
   const id = uuid.safeParse((await ctx.params).id);
   if (!id.success) return textResponse(400, "Invalid link.");
 

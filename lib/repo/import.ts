@@ -61,7 +61,7 @@ type NewStudent = Omit<StudentRow, "id" | "admission_no" | "class_id" | "status"
 
 /** Adds the students in one transaction (admission numbers in order), all or none. */
 export async function insertStudents(user: Viewer, students: Partial<NewStudent>[], classId: string | null) {
-  requireRole(user, "teacher", "headmaster");
+  requireRole(user, "teacher", "admin");
   if (user.profile.role === "teacher") {
     if (!classId) throw new AuthError("Choose one of your classes.");
     await assertTeacherOfClass(user, classId);
@@ -73,7 +73,7 @@ export async function insertStudents(user: Viewer, students: Partial<NewStudent>
 export async function upsertMarks(
   user: Viewer, examId: string, entries: { student_id: string; subject_id: string; marks_obtained: number }[],
 ) {
-  requireRole(user, "teacher", "headmaster");
+  requireRole(user, "teacher", "admin");
   return dbAs(user).upsert("marks", entries.map((e) => ({ ...e, is_absent: false, exam_id: examId, entered_by: user.id })));
 }
 
@@ -81,7 +81,7 @@ export async function upsertMarks(
 export async function upsertAttendance(
   user: Viewer, classId: string, entries: { student_id: string; date: string; status: AttendanceStatus; remark?: string | null }[],
 ) {
-  requireRole(user, "teacher", "headmaster");
+  requireRole(user, "teacher", "admin");
   await assertTeacherOfClass(user, classId);
   return dbAs(user).upsert("attendance", entries.map((e) => ({ ...e, class_id: classId, marked_by: user.id })));
 }

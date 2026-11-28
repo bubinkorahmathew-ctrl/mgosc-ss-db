@@ -8,7 +8,7 @@ import { getEmailNotifications } from "@/lib/repo/notify";
 export const metadata: Metadata = { title: "Account" };
 
 export default async function AdminAccountPage() {
-  const user = await requireRole("headmaster");
+  const user = await requireRole("admin");
   return (
     <>
       <PageHeader title="Account" description={`${user.profile.full_name} · ${user.email}`} />

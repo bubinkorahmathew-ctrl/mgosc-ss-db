@@ -2,9 +2,10 @@
 import type { SessionUser } from "@/lib/authn/login";
 import type { UserRole } from "@/lib/db/types";
 
-export function viewer(id: string, role: UserRole = "headmaster", superAdmin = role === "headmaster"): SessionUser {
+/** role is the effective role (as loadSessionUser gives it). */
+export function viewer(id: string, role: UserRole = "super_admin", superAdmin = role === "super_admin"): SessionUser {
   return {
     id, email: `${id}@test.invalid`, superAdmin, mustChangePassword: false,
-    profile: { id, full_name: "Test", phone: null, twelfth_passed_year: null, role, active: true, created_at: new Date(0).toISOString() },
+    profile: { id, full_name: "Test", phone: null, twelfth_passed_year: null, role, active: true, created_at: new Date(0).toISOString(), designation: null },
   };
 }

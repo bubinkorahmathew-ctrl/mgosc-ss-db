@@ -11,7 +11,7 @@ import { toActionError, type ActionResult } from "@/lib/action-result";
 // ---------------------------------------------------------------------------
 export async function saveAttendance(input: unknown): Promise<ActionResult<{ saved: number }>> {
   try {
-    const user = await assertRole("teacher", "headmaster");
+    const user = await assertRole("teacher", "admin");
     const saved = await teaching.saveAttendance(user, saveAttendanceSchema.parse(input));
     revalidatePath("/teacher/attendance");
     revalidatePath("/admin/attendance");
@@ -26,7 +26,7 @@ export async function saveAttendance(input: unknown): Promise<ActionResult<{ sav
 /** Who sat the exam. Absent students get no marks and no result. */
 export async function saveExamAttendance(input: unknown): Promise<ActionResult<{ saved: number }>> {
   try {
-    const user = await assertRole("teacher", "headmaster");
+    const user = await assertRole("teacher", "admin");
     const data = saveExamAttendanceSchema.parse(input);
     const absent = await teaching.saveExamAttendance(user, data);
     revalidatePath("/teacher/marks");
@@ -44,7 +44,7 @@ export async function saveExamAttendance(input: unknown): Promise<ActionResult<{
 // ---------------------------------------------------------------------------
 export async function saveMarks(input: unknown): Promise<ActionResult<{ saved: number }>> {
   try {
-    const user = await assertRole("teacher", "headmaster");
+    const user = await assertRole("teacher", "admin");
     const result = await teaching.saveMarks(user, saveMarksSchema.parse(input));
     if ("fieldErrors" in result) {
       return { ok: false, error: Object.values(result.fieldErrors)[0][0], fieldErrors: result.fieldErrors };
@@ -63,7 +63,7 @@ export async function saveMarks(input: unknown): Promise<ActionResult<{ saved: n
 // ---------------------------------------------------------------------------
 export async function saveActivity(input: unknown): Promise<ActionResult<{ id: string }>> {
   try {
-    const user = await assertRole("teacher", "headmaster");
+    const user = await assertRole("teacher", "admin");
     const data = activitySchema.parse(input);
     const id = await teaching.saveActivity(user, data);
     if (!id) return { ok: false, error: "Activity not found." };

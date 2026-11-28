@@ -18,7 +18,7 @@ const refresh = () => ACCOUNT_PAGES.forEach((p) => revalidatePath(p));
 
 export async function createReceipt(input: unknown): Promise<ActionResult<{ id: string; receiptNo: string }>> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     const saved = await receipts.createReceipt(user, receiptSchema.parse(input));
     refresh();
     return { ok: true, data: saved, message: `Receipt ${saved.receiptNo} saved.` };
@@ -29,7 +29,7 @@ export async function createReceipt(input: unknown): Promise<ActionResult<{ id: 
 
 export async function voidReceipt(input: unknown): Promise<ActionResult> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     const { id, reason } = voidSchema.parse(input);
     await receipts.voidReceipt(user, id, reason);
     refresh();
@@ -42,7 +42,7 @@ export async function voidReceipt(input: unknown): Promise<ActionResult> {
 /** Charity grid: admins for any class, teachers for their own class and themselves. */
 export async function saveCharity(input: unknown): Promise<ActionResult<{ saved: number; numbers: string[] }>> {
   try {
-    const user = await assertRole("headmaster", "teacher");
+    const user = await assertRole("admin", "teacher");
     const saved = await receipts.saveCharityGrid(user, charityGridSchema.parse(input));
     refresh();
     const n = saved.length;
@@ -54,7 +54,7 @@ export async function saveCharity(input: unknown): Promise<ActionResult<{ saved:
 
 export async function savePayment(input: unknown): Promise<ActionResult<{ id: string; voucherNo: string }>> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     const data = paymentSchema.parse(input);
     const saved = await payments.savePayment(user, data);
     refresh();
@@ -68,7 +68,7 @@ const statusSchema = z.object({ id: uuid, action: z.enum(["approve", "pay", "voi
 
 export async function setPaymentStatus(input: unknown): Promise<ActionResult> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     const { id, action, reason } = statusSchema.parse(input);
     await payments.setPaymentStatus(user, id, action, reason?.trim());
     refresh();
@@ -81,7 +81,7 @@ export async function setPaymentStatus(input: unknown): Promise<ActionResult> {
 
 export async function saveEvent(input: unknown): Promise<ActionResult<{ id: string }>> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     const data = eventSchema.parse(input);
     const id = await setup.saveEvent(user, data);
     refresh();
@@ -94,7 +94,7 @@ export async function saveEvent(input: unknown): Promise<ActionResult<{ id: stri
 
 export async function saveCategory(input: unknown): Promise<ActionResult> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     const data = categorySchema.parse(input);
     await setup.saveCategory(user, data);
     revalidatePath("/admin/accounts/settings");
@@ -106,7 +106,7 @@ export async function saveCategory(input: unknown): Promise<ActionResult> {
 
 export async function saveOpeningBalance(input: unknown): Promise<ActionResult> {
   try {
-    const user = await assertRole("headmaster");
+    const user = await assertRole("admin");
     await setup.saveOpeningBalance(user, openingBalanceSchema.parse(input));
     refresh();
     revalidatePath("/admin/accounts/settings");
