@@ -12,6 +12,7 @@ export const ROLES = [
 
 export const RIGHTS: { label: string; super: RightLevel; admin: RightLevel; teacher: RightLevel }[] = [
   { label: "Admin accounts, user rights, school settings, signature, menu icons", super: "yes", admin: "no", teacher: "no" },
+  { label: "Make a teacher an admin, or an admin a teacher again (same login)", super: "yes", admin: "no", teacher: "no" },
   { label: "Teacher accounts and class assignment", super: "yes", admin: "yes", teacher: "no" },
   { label: "Academic years, classes, subjects and exams", super: "yes", admin: "yes", teacher: "no" },
   { label: "Approve or reject registrations", super: "yes", admin: "yes", teacher: "no" },

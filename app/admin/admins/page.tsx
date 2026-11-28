@@ -5,7 +5,7 @@ import { listAdmins } from "@/lib/repo/accounts";
 import { Card, CardContent } from "@/components/ui/card";
 import { PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
-import { AddAdminDialog, AdminRowActions } from "./admin-dialogs";
+import { AddAdminDialog, AdminRowActions, ChangeRoleButton } from "./admin-dialogs";
 
 export const metadata: Metadata = { title: "Admins" };
 
@@ -29,7 +29,12 @@ export default async function AdminsPage() {
                 <p className="truncate text-sm text-muted-foreground">{a.email}</p>
                 <p className="text-sm">{a.superAdmin ? "Super admin" : "Admin"}</p>
               </div>
-              {!a.superAdmin && <AdminRowActions admin={{ id: a.id, full_name: a.full_name, active: a.active }} />}
+              {!a.superAdmin && (
+                <div className="flex flex-wrap gap-2">
+                  <AdminRowActions admin={{ id: a.id, full_name: a.full_name, active: a.active }} />
+                  {a.id !== user.id && <ChangeRoleButton id={a.id} name={a.full_name} to="teacher" />}
+                </div>
+              )}
             </CardContent>
           </Card>
         ))}

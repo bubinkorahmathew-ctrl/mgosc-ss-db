@@ -95,6 +95,12 @@ export async function setAdminActive(user: Viewer, id: string, active: boolean):
   await admins.setAdminAccountActive(getDatabase(), user.id, id, active);
 }
 
+/** Teacher -> admin ("headmaster") or back, same login. Super admin only. */
+export async function setStaffRole(user: Viewer, id: string, role: "headmaster" | "teacher"): Promise<void> {
+  superAdmin(user);
+  await admins.setStaffRole(getDatabase(), user.id, id, role);
+}
+
 export async function resetAdminPassword(user: Viewer, id: string): Promise<string> {
   superAdmin(user);
   return admins.resetAdminAccountPassword(getDatabase(), user.id, id);

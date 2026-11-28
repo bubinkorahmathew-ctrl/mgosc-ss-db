@@ -10,7 +10,7 @@ import { beginLoginAttempt, LOGIN_LIMITS } from "@/lib/authn/attempts";
 import {
   createTeacherAccount, listTeacherEmails, resetTeacherAccountPassword, setTeacherAccountActive, updateTeacherAccount,
 } from "@/lib/authn/accounts";
-import { createAdminAccount, resetAdminAccountPassword } from "@/lib/authn/admins";
+import { createAdminAccount, resetAdminAccountPassword, setStaffRole } from "@/lib/authn/admins";
 import { createFirstHeadmaster, resetHeadmasterPassword } from "@/lib/authn/headmaster";
 import { changeOwnPassword, checkLogin, type Client, loadSessionUser, loginTarget, SESSION_DAYS, type SessionClaims } from "@/lib/authn/login";
 import { hashPassword } from "@/lib/authn/password";
@@ -375,6 +375,29 @@ describe("teacher accounts", () => {
     await expect(setTeacherAccountActive(t.database, id, id, false)).rejects.toThrow(/not a teacher/);
     await expect(updateTeacherAccount(t.database, id, id, { full_name: "X", phone: null, class_ids: [] }))
       .rejects.toThrow(/not a teacher/);
+  });
+
+  it("the super admin can make a teacher an admin and back: same login, classes kept, effective at once", async () => {
+    const teacher = await settledTeacher();
+    const claims = await claimsFor(teacher.email, teacher.password);
+    await setStaffRole(t.database, IDS.headmaster, teacher.id, "headmaster");
+    expect((await user(claims))?.profile.role).toBe("headmaster");     // the same sign-in, next request
+    expect((await login(teacher.email, teacher.password)).ok).toBe(true);
+    await setStaffRole(t.database, IDS.headmaster, teacher.id, "teacher");
+    expect((await user(claims))?.profile.role).toBe("teacher");
+    expect(await t.database.query("select 1 from class_teachers where teacher_id = ?", [teacher.id])).toHaveLength(1);
+  });
+
+  it("only the super admin changes roles; never the super admin, nor their own, nor the wrong way", async () => {
+    const teacher = await settledTeacher();
+    const email = `${randomUUID()}@test.invalid`;
+    await createAdminAccount(t.database, IDS.headmaster, { email, full_name: "Plain Admin" });
+    const [{ id: admin }] = await t.database.query<{ id: string }>("select id from users where email = ?", [email]);
+    await expect(setStaffRole(t.database, admin, teacher.id, "headmaster")).rejects.toThrow(/not allowed/);
+    await expect(setStaffRole(t.database, IDS.teacher1, teacher.id, "headmaster")).rejects.toThrow(/not allowed/);
+    await expect(setStaffRole(t.database, IDS.headmaster, IDS.headmaster, "teacher")).rejects.toThrow(/own role/);
+    await expect(setStaffRole(t.database, IDS.headmaster, teacher.id, "teacher")).rejects.toThrow(/not an admin/);
+    await expect(setStaffRole(t.database, IDS.headmaster, admin, "headmaster")).rejects.toThrow(/not a teacher/);
   });
 
   it("login tables are unreachable through the data client", async () => {

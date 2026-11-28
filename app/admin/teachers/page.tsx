@@ -5,6 +5,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { StatusBadge } from "@/components/status-badge";
 import { TeacherDialog, TeacherRowActions } from "./teacher-dialogs";
+import { ChangeRoleButton } from "../admins/admin-dialogs";
 
 export const metadata: Metadata = { title: "Teachers" };
 
@@ -41,10 +42,13 @@ export default async function TeachersPage() {
                         : <span className="text-amber-700">No class this year</span>}
                     </p>
                   </div>
-                  <TeacherRowActions classes={classOptions}
-                    teacher={{ id: t.id, full_name: t.full_name, email: emails.get(t.id) ?? "", phone: t.phone ?? "",
-                      twelfth_passed_year: t.twelfth_passed_year, active: t.active,
-                      class_ids: current.map((c) => c.id) }} />
+                  <div className="flex flex-wrap gap-2">
+                    <TeacherRowActions classes={classOptions}
+                      teacher={{ id: t.id, full_name: t.full_name, email: emails.get(t.id) ?? "", phone: t.phone ?? "",
+                        twelfth_passed_year: t.twelfth_passed_year, active: t.active,
+                        class_ids: current.map((c) => c.id) }} />
+                    {user.superAdmin && t.active && <ChangeRoleButton id={t.id} name={t.full_name} to="headmaster" />}
+                  </div>
                 </CardContent>
               </Card>
             );

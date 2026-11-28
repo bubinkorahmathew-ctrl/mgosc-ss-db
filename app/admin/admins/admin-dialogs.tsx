@@ -3,8 +3,8 @@
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { KeyRound, Loader2, UserCheck, UserPlus, UserX } from "lucide-react";
-import { createAdmin, resetAdminPassword, setAdminActive } from "@/actions/admins";
+import { KeyRound, Loader2, ShieldMinus, ShieldPlus, UserCheck, UserPlus, UserX } from "lucide-react";
+import { changeStaffRole, createAdmin, resetAdminPassword, setAdminActive } from "@/actions/admins";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import {
@@ -76,6 +76,40 @@ export function AddAdminDialog() {
         )}
       </DialogContent>
     </Dialog>
+  );
+}
+
+/** Super admin only: make a teacher an admin ("headmaster"), or an admin a teacher again. Same login. */
+export function ChangeRoleButton({ id, name, to }: { id: string; name: string; to: "headmaster" | "teacher" }) {
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const toAdmin = to === "headmaster";
+  const run = () => start(async () => {
+    const res = await changeStaffRole({ id, role: to });
+    if (!res.ok) { toast.error(res.error); return; }
+    toast.success(res.message ?? "Done.");
+    router.refresh();
+  });
+  return (
+    <AlertDialog>
+      <AlertDialogTrigger render={<Button variant="outline" size="sm" disabled={pending} />}>
+        {pending ? <Loader2 className="animate-spin" /> : toAdmin ? <ShieldPlus /> : <ShieldMinus />} {toAdmin ? "Make admin" : "Make teacher"}
+      </AlertDialogTrigger>
+      <AlertDialogContent>
+        <AlertDialogHeader>
+          <AlertDialogTitle>{toAdmin ? `Make ${name} an admin?` : `Make ${name} a teacher again?`}</AlertDialogTitle>
+          <AlertDialogDescription>
+            {toAdmin
+              ? "They keep the same email and password. From their next click they see the admin pages and can work with every class, but not settings or other admins."
+              : "They keep the same email and password, and get back the classes they were assigned. From their next click they see only the teacher pages."}
+          </AlertDialogDescription>
+        </AlertDialogHeader>
+        <AlertDialogFooter>
+          <AlertDialogCancel>Cancel</AlertDialogCancel>
+          <AlertDialogAction disabled={pending} onClick={run}>{toAdmin ? "Make admin" : "Make teacher"}</AlertDialogAction>
+        </AlertDialogFooter>
+      </AlertDialogContent>
+    </AlertDialog>
   );
 }
 

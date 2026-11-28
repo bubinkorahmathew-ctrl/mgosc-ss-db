@@ -60,6 +60,26 @@ export async function setAdminAccountActive(database: Database, actorId: string,
   });
 }
 
+/**
+ * Teacher -> admin or admin -> teacher, keeping the same login and password. Super admin only;
+ * never the super admin's own account or the caller's. Class assignments are kept (an admin sees
+ * every class anyway; a teacher made again gets their classes back). Takes effect on the next
+ * request: the role is read from the database every time.
+ */
+export async function setStaffRole(database: Database, actorId: string, targetId: string, role: "headmaster" | "teacher") {
+  const id = toId(targetId);
+  await database.transaction(async (tx) => {
+    await requireSuperAdmin(tx, actorId);
+    if (id === toId(actorId)) throw notAllowed("not allowed: you can't change your own role");
+    const [target] = await tx.query<{ role: string; is_super: number }>(
+      "select role, is_super from profiles where id = ? for update", [id]);
+    if (!target || target.is_super) throw notAllowed("not allowed: that account can't be changed");
+    const from = role === "headmaster" ? "teacher" : "headmaster";
+    if (target.role !== from) throw notAllowed(`not allowed: that account is not ${from === "teacher" ? "a teacher" : "an admin"}`);
+    await tx.query("update profiles set role = ? where id = ?", [role, id]);
+  });
+}
+
 export async function resetAdminAccountPassword(database: Database, actorId: string, adminId: string): Promise<string> {
   const id = toId(adminId);
   const password = generateTempPassword();
