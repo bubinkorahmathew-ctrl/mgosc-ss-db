@@ -23,7 +23,7 @@ export default async function CashBookPage({ searchParams }: PageProps<"/admin/a
 
   return (
     <>
-      <PageHeader title="Accounts" description="Cash book: valid receipts and paid vouchers, day by day. Online counts as bank." />
+      <PageHeader title="Accounting" description="Cash book: valid receipts and paid vouchers, day by day. Online counts as bank." />
       <AccountsTabs active="/admin/accounts/cash-book" />
       <PeriodForm from={from} to={to}>
         <Field id="f-book" label="Book">

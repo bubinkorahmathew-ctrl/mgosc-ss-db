@@ -15,7 +15,7 @@ export default async function EventsPage() {
   const [list, currency] = await Promise.all([eventTotals(user), getCurrency(user)]);
   return (
     <>
-      <PageHeader title="Accounts" description="Events: budget against what was received and spent." actions={<EventDialog />} />
+      <PageHeader title="Accounting" description="Events: budget against what was received and spent." actions={<EventDialog />} />
       <AccountsTabs active="/admin/accounts/events" />
       {!list.length ? <EmptyState title="No events yet.">Create one, then link receipts and vouchers to it.</EmptyState> : (
         <ul className="divide-y rounded-xl border text-sm">

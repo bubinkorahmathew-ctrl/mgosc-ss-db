@@ -9,7 +9,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { EmptyState, PageHeader } from "@/components/page-header";
 import { AccountsTabs, Money, PeriodForm, periodFrom, StatusPill } from "@/components/accounts/common";
 
-export const metadata: Metadata = { title: "Accounts" };
+export const metadata: Metadata = { title: "Accounting" };
 
 export default async function AccountsHome({ searchParams }: PageProps<"/admin/accounts">) {
   const user = await requireRole("headmaster");
@@ -23,7 +23,7 @@ export default async function AccountsHome({ searchParams }: PageProps<"/admin/a
 
   return (
     <>
-      <PageHeader title="Accounts" description={`${formatDate(from)} to ${formatDate(to)}`} />
+      <PageHeader title="Accounting" description={`${formatDate(from)} to ${formatDate(to)}`} />
       <AccountsTabs active="/admin/accounts" />
       <PeriodForm from={from} to={to} />
       <div className="mb-6 grid grid-cols-2 gap-3 lg:grid-cols-4">

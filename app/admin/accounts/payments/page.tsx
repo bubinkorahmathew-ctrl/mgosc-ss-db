@@ -37,7 +37,7 @@ export default async function PaymentsPage({ searchParams }: PageProps<"/admin/a
 
   return (
     <>
-      <PageHeader title="Accounts" description="Payment vouchers: draft → approved → paid. Only paid vouchers count in the cash book."
+      <PageHeader title="Accounting" description="Payment vouchers: draft → approved → paid. Only paid vouchers count in the cash book."
         actions={<PaymentDialog today={todayISO()} categories={categories.map((c) => ({ id: c.id, label: c.name }))}
           events={events.filter((e) => e.status !== "closed").map((e) => ({ id: e.id, label: e.name }))} />} />
       <AccountsTabs active="/admin/accounts/payments" />

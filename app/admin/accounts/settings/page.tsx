@@ -18,7 +18,7 @@ export default async function AccountSettingsPage() {
   ]);
   return (
     <>
-      <PageHeader title="Accounts" description="Categories, opening balances and currency." />
+      <PageHeader title="Accounting" description="Categories, opening balances and currency." />
       <AccountsTabs active="/admin/accounts/settings" />
       <div className="space-y-4">
         <Card>

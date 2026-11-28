@@ -44,7 +44,7 @@ export default async function ReceiptsPage({ searchParams }: PageProps<"/admin/a
 
   return (
     <>
-      <PageHeader title="Accounts" description="Receipts: money received."
+      <PageHeader title="Accounting" description="Receipts: money received."
         actions={<ReceiptDialog students={payers.students} teachers={payers.teachers} today={todayISO()}
           categories={categories.map((c) => ({ id: c.id, label: c.name }))} events={eventOpts} />} />
       <AccountsTabs active="/admin/accounts/receipts" />

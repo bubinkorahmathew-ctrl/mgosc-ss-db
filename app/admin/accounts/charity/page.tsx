@@ -20,7 +20,7 @@ export default async function AdminCharityPage({ searchParams }: PageProps<"/adm
   const charity = categories.find((c) => c.name === "Charity collection");
   return (
     <>
-      <PageHeader title="Accounts" description="Charity collection: one amount per student; blank means nothing given."
+      <PageHeader title="Accounting" description="Charity collection: one amount per student; blank means nothing given."
         actions={<ReceiptDialog label="Quick entry" students={payers.students} teachers={payers.teachers} today={todayISO()}
           categories={categories.map((c) => ({ id: c.id, label: c.name }))} defaultCategory={charity?.id}
           events={events.filter((e) => e.status !== "closed").map((e) => ({ id: e.id, label: e.name }))} />} />

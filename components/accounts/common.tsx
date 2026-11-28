@@ -22,7 +22,7 @@ const TABS = [
 /** The accounts section's own tabs. */
 export function AccountsTabs({ active }: { active: string }) {
   return (
-    <nav aria-label="Accounts" className="mb-4 flex gap-1 overflow-x-auto border-b">
+    <nav aria-label="Accounting" className="mb-4 flex gap-1 overflow-x-auto border-b">
       {TABS.map((t) => (
         <Link key={t.href} href={t.href} aria-current={t.href === active ? "page" : undefined}
           className={cn("min-h-11 shrink-0 border-b-2 px-3 pt-3 text-sm font-medium",

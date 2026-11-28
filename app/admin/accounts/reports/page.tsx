@@ -54,7 +54,7 @@ export default async function AccountReportsPage({ searchParams }: PageProps<"/a
 
   return (
     <>
-      <PageHeader title="Accounts" description={`Reports for ${formatDate(from)} to ${formatDate(to)}. Each can be downloaded as Excel or PDF.`} />
+      <PageHeader title="Accounting" description={`Reports for ${formatDate(from)} to ${formatDate(to)}. Each can be downloaded as Excel or PDF.`} />
       <AccountsTabs active="/admin/accounts/reports" />
       <PeriodForm from={from} to={to}>
         <div className="flex items-end gap-1 lg:col-span-2">

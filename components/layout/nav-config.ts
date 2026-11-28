@@ -22,7 +22,7 @@ export const ADMIN_NAV: NavItem[] = [
   { href: "/admin/toppers", label: "Toppers", icon: "trophy", color: "amber" },
   { href: "/admin/reports", label: "Reports", icon: "reports", color: "green", primary: true },
   { href: "/admin/certificates", label: "Certificates", icon: "certificates", color: "pink" },
-  { href: "/admin/accounts", label: "Accounts", icon: "wallet", color: "teal" },
+  { href: "/admin/accounts", label: "Accounting", icon: "wallet", color: "teal" },
   { href: "/admin/promotion", label: "Promotion", icon: "promotion", color: "red" },
   { href: "/admin/admins", label: "Admins", icon: "teachers", color: "slate", superOnly: true },
   { href: "/admin/rights", label: "User rights", icon: "shield", color: "slate", superOnly: true },

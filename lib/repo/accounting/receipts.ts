@@ -46,7 +46,7 @@ async function activeCategory(tx: Tx, id: string, type: "income" | "expense") {
 async function charityCategoryId(tx: Tx) {
   const [c] = await tx.select({ id: accountCategories.id }).from(accountCategories)
     .where(and(eq(accountCategories.type, "income"), eq(accountCategories.name, CHARITY_CATEGORY), eq(accountCategories.active, true)));
-  if (!c) throw new UserError(`The category “${CHARITY_CATEGORY}” is missing or switched off (Accounts → Settings).`);
+  if (!c) throw new UserError(`The category “${CHARITY_CATEGORY}” is missing or switched off (Accounting → Settings).`);
   return c.id;
 }
 
