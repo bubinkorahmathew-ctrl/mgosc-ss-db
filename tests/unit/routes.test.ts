@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { homeFor, redirectFor } from "@/lib/authn/routes";
-import { safeNext } from "@/lib/validation/auth";
+import { credentialsSchema, safeNext } from "@/lib/validation/auth";
 
 const admin = { role: "headmaster", mustChangePassword: false } as const;
 const teacher = { role: "teacher", mustChangePassword: false } as const;
@@ -37,6 +37,13 @@ describe("who may open what (proxy)", () => {
       expect(redirectFor("/change-password", forced)).toBeNull();
       for (const path of ["/admin", "/teacher", "/ovbs/x", "/login"]) expect(redirectFor(path, forced)).toBe("/change-password");
     }
+  });
+
+  it("sign-in accepts the form Auth.js passes on (all text, with extra fields)", () => {
+    const fromAuthJs = { email: " Head@Example.com ", password: "secret-pass", remember: "false", callbackUrl: "/admin" };
+    expect(credentialsSchema.safeParse(fromAuthJs)).toMatchObject({ success: true, data: { email: "head@example.com", password: "secret-pass" } });
+    expect(credentialsSchema.safeParse({ ...fromAuthJs, remember: "true" }).success).toBe(true);
+    expect(credentialsSchema.safeParse({ email: "not-an-email", password: "x" }).success).toBe(false);
   });
 
   it("?next= only follows same-site paths", () => {

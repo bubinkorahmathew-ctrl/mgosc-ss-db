@@ -5,13 +5,20 @@ export const PASSWORD_MIN = 10;
 const PASSWORD_MAX_BYTES = 72;
 
 export const signInSchema = z.object({
-  email: z.email("Enter a valid email address.").trim().toLowerCase().max(254),
+  // trimmed first: phone keyboards add a space after an autocompleted address
+  email: z.string().trim().toLowerCase().pipe(z.email("Enter a valid email address.").max(254)),
   password: z.string().min(1, "Enter your password.").max(200),
   next: z.string().max(500).optional(),
   /** stay signed in for 14 days; otherwise 12 hours */
   remember: z.boolean().default(true),
 });
 export type SignInInput = z.infer<typeof signInSchema>;
+
+/**
+ * What Auth.js hands to authorize(): every field arrives as text, plus extras such as
+ * callbackUrl and remember ("true"/"false"). Only email and password are checked here.
+ */
+export const credentialsSchema = signInSchema.pick({ email: true, password: true });
 
 /** A new password, chosen by the person (never a default). */
 export const newPasswordSchema = z.string()

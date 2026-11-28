@@ -3,7 +3,7 @@ import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 import { getDb } from "@/db/client";
 import { clientIp } from "@/lib/rate-limit";
-import { signInSchema } from "@/lib/validation/auth";
+import { credentialsSchema } from "@/lib/validation/auth";
 import { checkLogin, SESSION_DAYS, type LoginFailure } from "./login";
 
 /** Thrown out of authorize(); `code` says why ("invalid", "limited" or "inactive"). */
@@ -37,7 +37,7 @@ export const { auth, signIn, signOut } = NextAuth({
     Credentials({
       credentials: { email: {}, password: {}, remember: {} },
       async authorize(raw, request) {
-        const parsed = signInSchema.safeParse(raw);
+        const parsed = credentialsSchema.safeParse(raw);
         if (!parsed.success) throw new LoginRefused("invalid");
         const result = await checkLogin(getDb(), parsed.data.email, parsed.data.password,
           { device: clientIp(request.headers), secret: authSecret() });
